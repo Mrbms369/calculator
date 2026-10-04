@@ -1,7 +1,5 @@
 // src/state/machine.js
 // Finite state machine for the calculator's behavior.
-// Knows NOTHING about the DOM. Knows NOTHING about math.
-// It just manages: what state are we in, and what should happen next.
 
 import { calculate, unary } from '../engine/calculator.js';
 
@@ -38,24 +36,25 @@ export function createInitialState(overrides = {}) {
 // ─── Public API ───────────────────────────────────────────────────────────
 export function dispatch(state, event) {
   switch (event.type) {
-    case 'DIGIT':          return onDigit(state, event.payload);
-    case 'DOT':            return onDot(state);
-    case 'OPERATOR':       return onOperator(state, event.payload);
-    case 'EQUALS':         return onEquals(state);
-    case 'CLEAR':          return onClear(state);
-    case 'SIGN':           return onSign(state);
-    case 'PERCENT':        return onPercent(state);
-    case 'BACKSPACE':      return onBackspace(state);
-    case 'RECALL_HISTORY': return onRecallHistory(state, event.payload);
-    case 'UNARY':          return onUnary(state, event.payload);
-    case 'CONSTANT':       return onConstant(state, event.payload);
-    case 'CLEAR_HISTORY':  return { ...state, history: [] };
+    case 'DIGIT':                return onDigit(state, event.payload);
+    case 'DOT':                  return onDot(state);
+    case 'OPERATOR':             return onOperator(state, event.payload);
+    case 'EQUALS':               return onEquals(state);
+    case 'CLEAR':                return onClear(state);
+    case 'SIGN':                 return onSign(state);
+    case 'PERCENT':              return onPercent(state);
+    case 'BACKSPACE':            return onBackspace(state);
+    case 'RECALL_HISTORY':       return onRecallHistory(state, event.payload);
+    case 'UNARY':                return onUnary(state, event.payload);
+    case 'CONSTANT':             return onConstant(state, event.payload);
+    case 'CLEAR_HISTORY':        return { ...state, history: [] };
+    case 'CLEAR_HISTORY_TODAY':  return onClearHistoryToday(state, event.payload);
     // memory keys
-    case 'MC':             return { ...state, memory: 0 };
-    case 'MR':             return { ...state, display: String(state.memory), state: State.RESULT };
-    case 'M_PLUS':         return { ...state, memory: state.memory + Number(state.display) };
-    case 'M_MINUS':        return { ...state, memory: state.memory - Number(state.display) };
-    default:               return state;
+    case 'MC':                   return { ...state, memory: 0 };
+    case 'MR':                   return { ...state, display: String(state.memory), state: State.RESULT };
+    case 'M_PLUS':               return { ...state, memory: state.memory + Number(state.display) };
+    case 'M_MINUS':              return { ...state, memory: state.memory - Number(state.display) };
+    default:                     return state;
   }
 }
 
@@ -156,7 +155,7 @@ function onEquals(state) {
       operand1: result,
       operand2: b,
       operator: null,
-      history: [...state.history, { expression, result }],
+      history: [...state.history, { expression, result, ts: Date.now() }],
     };
   } catch (err) {
     return { ...state, state: State.ERROR, display: 'Error' };
@@ -251,5 +250,20 @@ function onConstant(state, symbol) {
     operand1: value,
     operand2: null,
     operator: null,
+  };
+}
+
+/**
+ * Remove history entries older than the start of "today".
+ * Optionally pass a reference timestamp (defaults to Date.now()) — useful for tests.
+ */
+function onClearHistoryToday(state, referenceTs = Date.now()) {
+  const startOfToday = new Date(referenceTs);
+  startOfToday.setHours(0, 0, 0, 0);
+  const cutoff = startOfToday.getTime();
+
+  return {
+    ...state,
+    history: state.history.filter(h => (h.ts ?? 0) < cutoff),
   };
 }

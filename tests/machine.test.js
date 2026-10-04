@@ -36,6 +36,13 @@ describe('basic operations flow', () => {
     expect(s.display).toBe('5');
     expect(s.state).toBe(State.RESULT);
   });
+  it('history entry has a timestamp', () => {
+    const before = Date.now();
+    const s = run(createInitialState(), D('2'), OP('+'), D('3'), EQ());
+    const after = Date.now();
+    expect(s.history[0].ts).toBeGreaterThanOrEqual(before);
+    expect(s.history[0].ts).toBeLessThanOrEqual(after);
+  });
   it('shows second operand while typing', () => {
     const s = run(createInitialState(), D('2'), OP('+'), D('3'));
     expect(s.display).toBe('3');
@@ -189,20 +196,47 @@ describe('constant insertion (π)', () => {
   });
 });
 
-// ─── NEW: CLEAR_HISTORY ──────────────────────────────────────────────────
+// ─── History management ──────────────────────────────────────────────────
 describe('clear history', () => {
-  it('empties the history array', () => {
+  it('CLEAR_HISTORY empties the array', () => {
     const s1 = run(createInitialState(), D('2'), OP('+'), D('3'), EQ());
     expect(s1.history).toHaveLength(1);
     const s2 = run(s1, CLEAR_HIST());
     expect(s2.history).toEqual([]);
   });
 
-  it('keeps the current display and memory untouched', () => {
+  it('CLEAR_HISTORY keeps display and memory untouched', () => {
     const s1 = run(createInitialState(), D('4'), D('2'), { type: 'M_PLUS' });
     const s2 = run(s1, D('2'), OP('+'), D('3'), EQ());
     const s3 = run(s2, CLEAR_HIST());
     expect(s3.display).toBe(s2.display);
     expect(s3.memory).toBe(42);
+  });
+
+  it('CLEAR_HISTORY_TODAY removes only entries from today', () => {
+    // Simulate a state with 2 entries: one from "yesterday", one from "now"
+    const yesterday = Date.now() - 25 * 60 * 60 * 1000;
+    const now = Date.now();
+    const initial = createInitialState({
+      history: [
+        { expression: '1 + 1', result: 2, ts: yesterday },
+        { expression: '2 + 2', result: 4, ts: now },
+      ],
+    });
+
+    const after = dispatch(initial, { type: 'CLEAR_HISTORY_TODAY', payload: now });
+
+    expect(after.history).toHaveLength(1);
+    expect(after.history[0].expression).toBe('1 + 1');
+    expect(after.history[0].result).toBe(2);
+  });
+
+  it('CLEAR_HISTORY_TODAY leaves older entries intact', () => {
+    const oldTs = Date.now() - 10 * 24 * 60 * 60 * 1000; // 10 days ago
+    const initial = createInitialState({
+      history: [{ expression: '5 × 5', result: 25, ts: oldTs }],
+    });
+    const after = dispatch(initial, { type: 'CLEAR_HISTORY_TODAY' });
+    expect(after.history).toHaveLength(1);
   });
 });

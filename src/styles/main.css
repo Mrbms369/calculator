@@ -50,7 +50,7 @@ body {
 
 .calculator {
   display: grid;
-  grid-template-columns: 320px 220px;
+  grid-template-columns: 320px 240px;
   gap: 16px;
   background: var(--panel);
   padding: 16px;
@@ -59,7 +59,7 @@ body {
   transition: background .25s;
 }
 
-/* ── App title with RGB glowing animation ──────────────── */
+/* ── App title ─────────────────────────────────────────── */
 .app-title {
   grid-column: 1 / -1;
   margin: 0 0 4px;
@@ -79,7 +79,7 @@ body {
   100% { color: #ff3b3b; text-shadow: 0 0 10px #ff3b3b, 0 0 22px #ff3b3b, 0 0 34px rgba(255,59,59,.6); }
 }
 
-/* ── Display ───────────────────────────────────────────── */
+/* ── Display ──────────────────────────────────────────── */
 .display {
   grid-column: 1 / -1;
   background: var(--display-bg);
@@ -117,7 +117,7 @@ body {
 
 .current-value.error { color: var(--error); }
 
-/* ── Keypad ────────────────────────────────────────────── */
+/* ── Keypad ───────────────────────────────────────────── */
 .keypad {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -168,7 +168,7 @@ body {
   outline-offset: 2px;
 }
 
-/* ── History panel ─────────────────────────────────────── */
+/* ── History panel ────────────────────────────────────── */
 .history-panel {
   background: var(--display-bg);
   border-radius: var(--radius);
@@ -196,16 +196,23 @@ body {
   color: var(--text-dim);
 }
 
+.history-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.history-actions.hidden { display: none; }
+
 .history-clear {
   background: transparent;
   border: 1px solid var(--text-dim);
   color: var(--text-dim);
-  font-size: 11px;
-  font-weight: 600;
+  font-size: 10px;
+  font-weight: 700;
   letter-spacing: .5px;
   text-transform: uppercase;
-  padding: 4px 8px;
-  border-radius: 8px;
+  padding: 3px 7px;
+  border-radius: 7px;
   cursor: pointer;
   transition: background .12s, color .12s, border-color .12s;
 }
@@ -216,8 +223,6 @@ body {
   border-color: var(--error);
 }
 
-.history-clear.hidden { display: none; }
-
 .history-list {
   list-style: none;
   margin: 0;
@@ -227,44 +232,81 @@ body {
   font-size: 13px;
 }
 
-.history-list li {
-  display: flex;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 6px 4px;
-  border-bottom: 1px solid rgba(255,255,255,.05);
-  color: var(--text-dim);
+.history-day {
+  margin-bottom: 6px;
+  border-bottom: none !important;
+  padding: 0 !important;
+  display: block !important;
 }
 
-.history-list li .res { color: var(--text); font-weight: 600; }
+.history-day-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  opacity: .7;
+  padding: 8px 4px 4px;
+  position: sticky;
+  top: 0;
+  background: var(--display-bg);
+  z-index: 1;
+}
 
-.history-list li[data-result] {
-  cursor: pointer;
-  border-radius: 8px;
+.history-day-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.history-item {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 8px;
+  align-items: center;
   padding: 6px 8px;
+  border-radius: 8px;
+  color: var(--text-dim);
+  cursor: pointer;
   transition: background .12s, color .12s;
 }
 
-.history-list li[data-result]:hover,
-.history-list li[data-result]:focus-visible {
+.history-item:hover,
+.history-item:focus-visible {
   background: rgba(255, 149, 0, .12);
   color: var(--text);
   outline: none;
 }
 
-.history-list li[data-result]:hover .expr {
-  color: var(--text);
+.history-item:hover .expr { color: var(--text); }
+
+.history-item .expr {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-/* ── Responsive ────────────────────────────────────────── */
+.history-item .time {
+  font-size: 10px;
+  opacity: .6;
+  font-variant-numeric: tabular-nums;
+}
+
+.history-item .res {
+  color: var(--text);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Responsive ───────────────────────────────────────── */
 @media (max-width: 620px) {
   .calculator { grid-template-columns: 1fr; width: 100%; max-width: 380px; }
-  .history-panel { max-height: 200px; }
+  .history-panel { max-height: 240px; }
   .current-value { font-size: 32px; }
   .btn.sci { font-size: 13px; }
 }
 
-/* ── Theme toggle ──────────────────────────────────────── */
+/* ── Theme toggle ─────────────────────────────────────── */
 .theme-toggle {
   position: fixed;
   top: 16px;
@@ -299,7 +341,7 @@ body {
 .theme-toggle:hover  { transform: scale(1.06); }
 .theme-toggle:active { transform: scale(0.94); }
 
-/* ── Toast notifications ───────────────────────────────── */
+/* ── Toast ────────────────────────────────────────────── */
 .toast-container {
   position: fixed;
   left: 50%;

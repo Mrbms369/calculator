@@ -6,12 +6,20 @@ import { createInitialState, dispatch } from './state/machine.js';
 import { mount, flashButton } from './ui/render.js';
 import { copyToClipboard } from './ui/toast.js';
 
-// ─── Storage keys (namespaced to avoid collisions) ───────────────────────
+// ─── Register service worker (PWA) ──────────────────────────────────────
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker
+      .register('/sw.js')
+      .catch((err) => console.warn('SW registration failed:', err));
+  });
+}
+
 const THEME_KEY   = 'bms-calculator:theme';
 const HISTORY_KEY = 'bms-calculator:history';
-const MAX_HISTORY = 50;   // cap to prevent localStorage bloat
+const MAX_HISTORY = 100;
 
-// ─── Theme (load BEFORE rendering to avoid flash) ────────────────────────
+// ─── Theme ──────────────────────────────────────────────────────────────
 function applyTheme(theme) {
   document.documentElement.dataset.theme = theme;
 }
@@ -25,16 +33,16 @@ function loadTheme() {
 let currentTheme = loadTheme();
 applyTheme(currentTheme);
 
-// ─── History persistence helpers ─────────────────────────────────────────
+// ─── History persistence ────────────────────────────────────────────────
 function loadHistory() {
   try {
     const raw = localStorage.getItem(HISTORY_KEY);
     if (!raw) return [];
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
-    // Keep only valid entries, and cap the length
     return parsed
       .filter(h => h && typeof h.expression === 'string' && h.result != null)
+      .map(h => ({ ...h, ts: Number.isFinite(h.ts) ? h.ts : Date.now() }))
       .slice(-MAX_HISTORY);
   } catch {
     return [];
@@ -43,22 +51,21 @@ function loadHistory() {
 
 function saveHistory(history) {
   try {
-    const capped = history.slice(-MAX_HISTORY);
-    localStorage.setItem(HISTORY_KEY, JSON.stringify(capped));
+    localStorage.setItem(HISTORY_KEY, JSON.stringify(history.slice(-MAX_HISTORY)));
   } catch {
-    // localStorage might be full or disabled — fail silently
+    // ignore quota errors
   }
 }
 
-// ─── State (single source of truth) — pre-loaded with saved history ─────
+// ─── State (pre-loaded with saved history) ──────────────────────────────
 let state = createInitialState({ history: loadHistory() });
 const root = document.getElementById('app');
 
-// ─── Mount UI ────────────────────────────────────────────────────────────
+// ─── Mount UI ───────────────────────────────────────────────────────────
 const ui = mount(root, state, handleEvent);
 ui.update(state);
 
-// ─── Theme toggle button ─────────────────────────────────────────────────
+// ─── Theme toggle ───────────────────────────────────────────────────────
 const themeToggle = document.createElement('button');
 themeToggle.className = 'theme-toggle';
 themeToggle.type = 'button';
@@ -78,7 +85,7 @@ themeToggle.addEventListener('click', () => {
 
 document.body.appendChild(themeToggle);
 
-// ─── Copy result: click the display to copy its value ────────────────────
+// ─── Copy result on display click ───────────────────────────────────────
 const displayEl = root.querySelector('.display');
 if (displayEl) {
   displayEl.setAttribute('title', 'Click to copy');
@@ -89,19 +96,18 @@ if (displayEl) {
   });
 }
 
-// ─── Central event handler ───────────────────────────────────────────────
+// ─── Central event handler ──────────────────────────────────────────────
 function handleEvent(event) {
   const prevHistory = state.history;
   state = dispatch(state, event);
   ui.update(state);
 
-  // Persist history whenever it changed
   if (state.history !== prevHistory) {
     saveHistory(state.history);
   }
 }
 
-// ─── Keyboard support ────────────────────────────────────────────────────
+// ─── Keyboard support ───────────────────────────────────────────────────
 const KEY_MAP = {
   '0': { type: 'DIGIT', payload: '0' },
   '1': { type: 'DIGIT', payload: '1' },
@@ -148,13 +154,10 @@ function labelFor(event) {
 
 document.addEventListener('keydown', (e) => {
   if (e.ctrlKey || e.metaKey || e.altKey) return;
-
   const event = KEY_MAP[e.key];
   if (!event) return;
-
   e.preventDefault();
   handleEvent(event);
-
   const label = labelFor(event);
   if (label) flashButton(root, label);
 });
