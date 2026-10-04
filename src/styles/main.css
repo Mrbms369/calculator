@@ -179,14 +179,44 @@ body {
   transition: background .25s;
 }
 
+.history-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+  gap: 8px;
+}
+
 .history-panel h3 {
-  margin: 0 0 8px;
+  margin: 0;
   font-size: 13px;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 1px;
   color: var(--text-dim);
 }
+
+.history-clear {
+  background: transparent;
+  border: 1px solid var(--text-dim);
+  color: var(--text-dim);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .5px;
+  text-transform: uppercase;
+  padding: 4px 8px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background .12s, color .12s, border-color .12s;
+}
+
+.history-clear:hover {
+  background: rgba(255, 82, 82, .12);
+  color: var(--error);
+  border-color: var(--error);
+}
+
+.history-clear.hidden { display: none; }
 
 .history-list {
   list-style: none;
@@ -208,7 +238,6 @@ body {
 
 .history-list li .res { color: var(--text); font-weight: 600; }
 
-/* ── Clickable history items ───────────────────────────── */
 .history-list li[data-result] {
   cursor: pointer;
   border-radius: 8px;
@@ -230,7 +259,7 @@ body {
 /* ── Responsive ────────────────────────────────────────── */
 @media (max-width: 620px) {
   .calculator { grid-template-columns: 1fr; width: 100%; max-width: 380px; }
-  .history-panel { max-height: 160px; }
+  .history-panel { max-height: 200px; }
   .current-value { font-size: 32px; }
   .btn.sci { font-size: 13px; }
 }

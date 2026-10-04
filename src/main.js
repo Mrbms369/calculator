@@ -1,14 +1,17 @@
 // src/main.js
-// Bootstrap: create state, mount UI, wire events + keyboard + theme + copy.
+// Bootstrap: create state, mount UI, wire events + keyboard + theme + copy + persistence.
 
 import './styles/main.css';
 import { createInitialState, dispatch } from './state/machine.js';
 import { mount, flashButton } from './ui/render.js';
 import { copyToClipboard } from './ui/toast.js';
 
-// ─── Theme (load BEFORE rendering to avoid flash) ────────────────────────
-const THEME_KEY = 'bms-calculator:theme';
+// ─── Storage keys (namespaced to avoid collisions) ───────────────────────
+const THEME_KEY   = 'bms-calculator:theme';
+const HISTORY_KEY = 'bms-calculator:history';
+const MAX_HISTORY = 50;   // cap to prevent localStorage bloat
 
+// ─── Theme (load BEFORE rendering to avoid flash) ────────────────────────
 function applyTheme(theme) {
   document.documentElement.dataset.theme = theme;
 }
@@ -22,8 +25,33 @@ function loadTheme() {
 let currentTheme = loadTheme();
 applyTheme(currentTheme);
 
-// ─── State (single source of truth) ──────────────────────────────────────
-let state = createInitialState();
+// ─── History persistence helpers ─────────────────────────────────────────
+function loadHistory() {
+  try {
+    const raw = localStorage.getItem(HISTORY_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    // Keep only valid entries, and cap the length
+    return parsed
+      .filter(h => h && typeof h.expression === 'string' && h.result != null)
+      .slice(-MAX_HISTORY);
+  } catch {
+    return [];
+  }
+}
+
+function saveHistory(history) {
+  try {
+    const capped = history.slice(-MAX_HISTORY);
+    localStorage.setItem(HISTORY_KEY, JSON.stringify(capped));
+  } catch {
+    // localStorage might be full or disabled — fail silently
+  }
+}
+
+// ─── State (single source of truth) — pre-loaded with saved history ─────
+let state = createInitialState({ history: loadHistory() });
 const root = document.getElementById('app');
 
 // ─── Mount UI ────────────────────────────────────────────────────────────
@@ -63,8 +91,14 @@ if (displayEl) {
 
 // ─── Central event handler ───────────────────────────────────────────────
 function handleEvent(event) {
+  const prevHistory = state.history;
   state = dispatch(state, event);
   ui.update(state);
+
+  // Persist history whenever it changed
+  if (state.history !== prevHistory) {
+    saveHistory(state.history);
+  }
 }
 
 // ─── Keyboard support ────────────────────────────────────────────────────
@@ -93,10 +127,9 @@ const KEY_MAP = {
   'c': { type: 'CLEAR' },
   'C': { type: 'CLEAR' },
   '%': { type: 'PERCENT' },
-  // scientific shortcuts
-  'r': { type: 'UNARY', payload: '√' },     // r for root
-  'q': { type: 'UNARY', payload: 'x²' },    // q for square
-  's': { type: 'UNARY', payload: '1/x' },   // s for reciprocal
+  'r': { type: 'UNARY', payload: '√' },
+  'q': { type: 'UNARY', payload: 'x²' },
+  's': { type: 'UNARY', payload: '1/x' },
 };
 
 function labelFor(event) {

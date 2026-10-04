@@ -22,7 +22,7 @@ export const State = Object.freeze({
 });
 
 // ─── Initial state ────────────────────────────────────────────────────────
-export function createInitialState() {
+export function createInitialState(overrides = {}) {
   return {
     state: State.IDLE,
     display: '0',
@@ -31,6 +31,7 @@ export function createInitialState() {
     operator: null,
     memory: 0,
     history: [],
+    ...overrides,
   };
 }
 
@@ -48,6 +49,7 @@ export function dispatch(state, event) {
     case 'RECALL_HISTORY': return onRecallHistory(state, event.payload);
     case 'UNARY':          return onUnary(state, event.payload);
     case 'CONSTANT':       return onConstant(state, event.payload);
+    case 'CLEAR_HISTORY':  return { ...state, history: [] };
     // memory keys
     case 'MC':             return { ...state, memory: 0 };
     case 'MR':             return { ...state, display: String(state.memory), state: State.RESULT };
@@ -238,12 +240,6 @@ function onUnary(state, op) {
   }
 }
 
-/**
- * Insert a mathematical constant (π, e) into the display.
- * Behaves like a computed value: next digit starts fresh.
- * @param {object} state
- * @param {string} symbol  'π' | 'e'
- */
 function onConstant(state, symbol) {
   const value = CONSTANTS[symbol];
   if (value == null) return state;

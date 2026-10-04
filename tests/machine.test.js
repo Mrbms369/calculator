@@ -14,6 +14,7 @@ const DOT = () => ({ type: 'DOT' });
 const RECALL = (v) => ({ type: 'RECALL_HISTORY', payload: v });
 const UN = (op) => ({ type: 'UNARY', payload: op });
 const CONST = (c) => ({ type: 'CONSTANT', payload: c });
+const CLEAR_HIST = () => ({ type: 'CLEAR_HISTORY' });
 
 describe('typing digits', () => {
   it('starts at 0', () => {
@@ -166,28 +167,42 @@ describe('unary operations (√, x², 1/x)', () => {
   });
 });
 
-// ─── NEW: CONSTANT (π) ───────────────────────────────────────────────────
 describe('constant insertion (π)', () => {
   it('inserts π and enters RESULT state', () => {
     const s = run(createInitialState(), CONST('π'));
     expect(s.state).toBe(State.RESULT);
     expect(Number(s.display)).toBeCloseTo(Math.PI, 10);
   });
-
   it('next digit after π starts fresh', () => {
     const s = run(createInitialState(), CONST('π'), D('5'));
     expect(s.display).toBe('5');
     expect(s.state).toBe(State.ENTERING_FIRST);
   });
-
   it('π × 2 = → ~6.28318530718', () => {
     const s = run(createInitialState(), CONST('π'), OP('×'), D('2'), EQ());
     expect(Number(s.display)).toBeCloseTo(2 * Math.PI, 8);
   });
-
   it('ignores unknown constants', () => {
     const before = createInitialState();
     const after  = dispatch(before, CONST('Ω'));
     expect(after).toEqual(before);
+  });
+});
+
+// ─── NEW: CLEAR_HISTORY ──────────────────────────────────────────────────
+describe('clear history', () => {
+  it('empties the history array', () => {
+    const s1 = run(createInitialState(), D('2'), OP('+'), D('3'), EQ());
+    expect(s1.history).toHaveLength(1);
+    const s2 = run(s1, CLEAR_HIST());
+    expect(s2.history).toEqual([]);
+  });
+
+  it('keeps the current display and memory untouched', () => {
+    const s1 = run(createInitialState(), D('4'), D('2'), { type: 'M_PLUS' });
+    const s2 = run(s1, D('2'), OP('+'), D('3'), EQ());
+    const s3 = run(s2, CLEAR_HIST());
+    expect(s3.display).toBe(s2.display);
+    expect(s3.memory).toBe(42);
   });
 });
