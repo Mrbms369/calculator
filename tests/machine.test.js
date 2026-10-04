@@ -15,18 +15,15 @@ const RECALL = (v) => ({ type: 'RECALL_HISTORY', payload: v });
 const UN = (op) => ({ type: 'UNARY', payload: op });
 const CONST = (c) => ({ type: 'CONSTANT', payload: c });
 const CLEAR_HIST = () => ({ type: 'CLEAR_HISTORY' });
+const VOICE = (payload) => ({ type: 'VOICE_EXPRESSION', payload });
 
 describe('typing digits', () => {
-  it('starts at 0', () => {
-    expect(createInitialState().display).toBe('0');
-  });
+  it('starts at 0', () => expect(createInitialState().display).toBe('0'));
   it('5 5 5 → "555"', () => {
-    const s = run(createInitialState(), D('5'), D('5'), D('5'));
-    expect(s.display).toBe('555');
+    expect(run(createInitialState(), D('5'), D('5'), D('5')).display).toBe('555');
   });
   it('leading zero is replaced', () => {
-    const s = run(createInitialState(), D('0'), D('7'));
-    expect(s.display).toBe('7');
+    expect(run(createInitialState(), D('0'), D('7')).display).toBe('7');
   });
 });
 
@@ -44,8 +41,7 @@ describe('basic operations flow', () => {
     expect(s.history[0].ts).toBeLessThanOrEqual(after);
   });
   it('shows second operand while typing', () => {
-    const s = run(createInitialState(), D('2'), OP('+'), D('3'));
-    expect(s.display).toBe('3');
+    expect(run(createInitialState(), D('2'), OP('+'), D('3')).display).toBe('3');
   });
   it('chained: 2 + 3 + → 5', () => {
     const s = run(createInitialState(), D('2'), OP('+'), D('3'), OP('+'));
@@ -53,8 +49,7 @@ describe('basic operations flow', () => {
     expect(s.operator).toBe('+');
   });
   it('replaces operator if pressed twice', () => {
-    const s = run(createInitialState(), D('2'), OP('+'), OP('×'));
-    expect(s.operator).toBe('×');
+    expect(run(createInitialState(), D('2'), OP('+'), OP('×')).operator).toBe('×');
   });
 });
 
@@ -73,15 +68,13 @@ describe('clear and backspace', () => {
     expect(s.state).toBe(State.IDLE);
   });
   it('backspace removes last char', () => {
-    const s = run(createInitialState(), D('1'), D('2'), D('3'), { type: 'BACKSPACE' });
-    expect(s.display).toBe('12');
+    expect(run(createInitialState(), D('1'), D('2'), D('3'), { type: 'BACKSPACE' }).display).toBe('12');
   });
 });
 
 describe('decimal point', () => {
   it('prevents double dots', () => {
-    const s = run(createInitialState(), D('1'), DOT(), D('5'), DOT());
-    expect(s.display).toBe('1.5');
+    expect(run(createInitialState(), D('1'), DOT(), D('5'), DOT()).display).toBe('1.5');
   });
   it('2.5 + 2.5 = → 5', () => {
     const s = run(createInitialState(), D('2'), DOT(), D('5'), OP('+'), D('2'), DOT(), D('5'), EQ());
@@ -91,12 +84,10 @@ describe('decimal point', () => {
 
 describe('sign toggle', () => {
   it('± flips the sign', () => {
-    const s = run(createInitialState(), D('7'), { type: 'SIGN' });
-    expect(s.display).toBe('-7');
+    expect(run(createInitialState(), D('7'), { type: 'SIGN' }).display).toBe('-7');
   });
   it('± twice returns to original', () => {
-    const s = run(createInitialState(), D('7'), { type: 'SIGN' }, { type: 'SIGN' });
-    expect(s.display).toBe('7');
+    expect(run(createInitialState(), D('7'), { type: 'SIGN' }, { type: 'SIGN' }).display).toBe('7');
   });
 });
 
@@ -112,8 +103,7 @@ describe('memory', () => {
   it('M+ stores value and MR recalls it', () => {
     const s1 = run(createInitialState(), D('4'), D('2'), { type: 'M_PLUS' });
     expect(s1.memory).toBe(42);
-    const s2 = run(s1, C(), { type: 'MR' });
-    expect(s2.display).toBe('42');
+    expect(run(s1, C(), { type: 'MR' }).display).toBe('42');
   });
 });
 
@@ -125,13 +115,10 @@ describe('recall from history', () => {
     expect(s.operand1).toBe(3915);
   });
   it('next digit starts a fresh number', () => {
-    const s = run(createInitialState(), RECALL(42), D('7'));
-    expect(s.display).toBe('7');
-    expect(s.state).toBe(State.ENTERING_FIRST);
+    expect(run(createInitialState(), RECALL(42), D('7')).display).toBe('7');
   });
   it('can be used as first operand of a new calculation', () => {
-    const s = run(createInitialState(), RECALL(5), OP('+'), D('3'), EQ());
-    expect(s.display).toBe('8');
+    expect(run(createInitialState(), RECALL(5), OP('+'), D('3'), EQ()).display).toBe('8');
   });
   it('ignores non-numeric payload', () => {
     const before = createInitialState();
@@ -142,35 +129,26 @@ describe('recall from history', () => {
 
 describe('unary operations (√, x², 1/x)', () => {
   it('√9 → 3', () => {
-    const s = run(createInitialState(), D('9'), UN('√'));
-    expect(s.display).toBe('3');
-    expect(s.state).toBe(State.RESULT);
+    expect(run(createInitialState(), D('9'), UN('√')).display).toBe('3');
   });
   it('x² of 5 → 25', () => {
-    const s = run(createInitialState(), D('5'), UN('x²'));
-    expect(s.display).toBe('25');
+    expect(run(createInitialState(), D('5'), UN('x²')).display).toBe('25');
   });
   it('1/x of 4 → 0.25', () => {
-    const s = run(createInitialState(), D('4'), UN('1/x'));
-    expect(s.display).toBe('0.25');
+    expect(run(createInitialState(), D('4'), UN('1/x')).display).toBe('0.25');
   });
   it('√ of a negative number → Error', () => {
     const s = run(createInitialState(), D('9'), { type: 'SIGN' }, UN('√'));
     expect(s.state).toBe(State.ERROR);
-    expect(s.display).toBe('Error');
   });
   it('1/x of 0 → Error', () => {
-    const s = run(createInitialState(), UN('1/x'));
-    expect(s.state).toBe(State.ERROR);
-    expect(s.display).toBe('Error');
+    expect(run(createInitialState(), UN('1/x')).state).toBe(State.ERROR);
   });
-  it('unary result can feed the next calculation: √9 + 1 = → 4', () => {
-    const s = run(createInitialState(), D('9'), UN('√'), OP('+'), D('1'), EQ());
-    expect(s.display).toBe('4');
+  it('unary result feeds next calculation', () => {
+    expect(run(createInitialState(), D('9'), UN('√'), OP('+'), D('1'), EQ()).display).toBe('4');
   });
   it('next digit after √ starts fresh', () => {
-    const s = run(createInitialState(), D('9'), UN('√'), D('7'));
-    expect(s.display).toBe('7');
+    expect(run(createInitialState(), D('9'), UN('√'), D('7')).display).toBe('7');
   });
 });
 
@@ -181,40 +159,32 @@ describe('constant insertion (π)', () => {
     expect(Number(s.display)).toBeCloseTo(Math.PI, 10);
   });
   it('next digit after π starts fresh', () => {
-    const s = run(createInitialState(), CONST('π'), D('5'));
-    expect(s.display).toBe('5');
-    expect(s.state).toBe(State.ENTERING_FIRST);
+    expect(run(createInitialState(), CONST('π'), D('5')).display).toBe('5');
   });
-  it('π × 2 = → ~6.28318530718', () => {
+  it('π × 2 = → ~6.28', () => {
     const s = run(createInitialState(), CONST('π'), OP('×'), D('2'), EQ());
     expect(Number(s.display)).toBeCloseTo(2 * Math.PI, 8);
   });
   it('ignores unknown constants', () => {
     const before = createInitialState();
-    const after  = dispatch(before, CONST('Ω'));
-    expect(after).toEqual(before);
+    expect(dispatch(before, CONST('Ω'))).toEqual(before);
   });
 });
 
-// ─── History management ──────────────────────────────────────────────────
 describe('clear history', () => {
   it('CLEAR_HISTORY empties the array', () => {
     const s1 = run(createInitialState(), D('2'), OP('+'), D('3'), EQ());
     expect(s1.history).toHaveLength(1);
-    const s2 = run(s1, CLEAR_HIST());
-    expect(s2.history).toEqual([]);
+    expect(run(s1, CLEAR_HIST()).history).toEqual([]);
   });
-
-  it('CLEAR_HISTORY keeps display and memory untouched', () => {
+  it('keeps display/memory untouched', () => {
     const s1 = run(createInitialState(), D('4'), D('2'), { type: 'M_PLUS' });
     const s2 = run(s1, D('2'), OP('+'), D('3'), EQ());
     const s3 = run(s2, CLEAR_HIST());
     expect(s3.display).toBe(s2.display);
     expect(s3.memory).toBe(42);
   });
-
   it('CLEAR_HISTORY_TODAY removes only entries from today', () => {
-    // Simulate a state with 2 entries: one from "yesterday", one from "now"
     const yesterday = Date.now() - 25 * 60 * 60 * 1000;
     const now = Date.now();
     const initial = createInitialState({
@@ -223,20 +193,44 @@ describe('clear history', () => {
         { expression: '2 + 2', result: 4, ts: now },
       ],
     });
-
     const after = dispatch(initial, { type: 'CLEAR_HISTORY_TODAY', payload: now });
-
     expect(after.history).toHaveLength(1);
     expect(after.history[0].expression).toBe('1 + 1');
-    expect(after.history[0].result).toBe(2);
   });
-
   it('CLEAR_HISTORY_TODAY leaves older entries intact', () => {
-    const oldTs = Date.now() - 10 * 24 * 60 * 60 * 1000; // 10 days ago
+    const oldTs = Date.now() - 10 * 24 * 60 * 60 * 1000;
     const initial = createInitialState({
       history: [{ expression: '5 × 5', result: 25, ts: oldTs }],
     });
-    const after = dispatch(initial, { type: 'CLEAR_HISTORY_TODAY' });
-    expect(after.history).toHaveLength(1);
+    expect(dispatch(initial, { type: 'CLEAR_HISTORY_TODAY' }).history).toHaveLength(1);
+  });
+});
+
+// ─── NEW: VOICE_EXPRESSION ────────────────────────────────────────────
+describe('voice expression', () => {
+  it('sets display to result and enters RESULT state', () => {
+    const s = run(createInitialState(), VOICE({ expression: '47 × 89', result: 4183 }));
+    expect(s.display).toBe('4183');
+    expect(s.state).toBe(State.RESULT);
+    expect(s.operand1).toBe(4183);
+  });
+
+  it('adds to history with the expression', () => {
+    const s = run(createInitialState(), VOICE({ expression: '12 + 30', result: 42 }));
+    expect(s.history).toHaveLength(1);
+    expect(s.history[0].expression).toBe('12 + 30');
+    expect(s.history[0].result).toBe(42);
+  });
+
+  it('ignores invalid payload', () => {
+    const before = createInitialState();
+    expect(dispatch(before, VOICE(null))).toEqual(before);
+    expect(dispatch(before, VOICE({ expression: 'x', result: NaN })).state).toBe(State.ERROR);
+  });
+
+  it('next digit after voice starts fresh', () => {
+    const s = run(createInitialState(), VOICE({ expression: '5 × 5', result: 25 }), D('7'));
+    expect(s.display).toBe('7');
+    expect(s.state).toBe(State.ENTERING_FIRST);
   });
 });

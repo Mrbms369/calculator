@@ -38,7 +38,6 @@ const BUTTONS = [
   { label: '=',   event: { type: 'EQUALS' },                cls: 'eq' },
 ];
 
-// ─── Time formatting helpers ─────────────────────────────────────────────
 function startOfDay(ts) {
   const d = new Date(ts);
   d.setHours(0, 0, 0, 0);
@@ -53,12 +52,10 @@ function formatTime(ts) {
 }
 
 function formatDayHeader(dayTs) {
-  const today     = startOfDay(Date.now());
+  const today = startOfDay(Date.now());
   const yesterday = today - 24 * 60 * 60 * 1000;
-
-  if (dayTs === today)     return 'Today';
+  if (dayTs === today) return 'Today';
   if (dayTs === yesterday) return 'Yesterday';
-
   const d = new Date(dayTs);
   const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   const year = d.getFullYear();
@@ -68,10 +65,6 @@ function formatDayHeader(dayTs) {
     : `${monthNames[d.getMonth()]} ${d.getDate()}, ${year}`;
 }
 
-/**
- * Group history entries (chronological) into day buckets.
- * Returns an array of { dayTs, label, entries } in reverse-chronological order.
- */
 function groupByDay(history) {
   const buckets = new Map();
   for (const entry of history) {
@@ -79,25 +72,21 @@ function groupByDay(history) {
     if (!buckets.has(dayTs)) buckets.set(dayTs, []);
     buckets.get(dayTs).push(entry);
   }
-
   return Array.from(buckets.entries())
-    .sort((a, b) => b[0] - a[0])            // newest day first
+    .sort((a, b) => b[0] - a[0])
     .map(([dayTs, entries]) => ({
       dayTs,
       label: formatDayHeader(dayTs),
-      entries: entries.slice().reverse(),   // newest entry first within the day
+      entries: entries.slice().reverse(),
     }));
 }
 
 function escapeHtml(s) {
   return String(s)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
-// ─── Mount ───────────────────────────────────────────────────────────────
 export function mount(root, initialState, onEvent) {
   root.innerHTML = `
     <div class="calculator">
@@ -126,7 +115,6 @@ export function mount(root, initialState, onEvent) {
   const historyList     = root.querySelector('.history-list');
   const historyActions  = root.querySelector('.history-actions');
 
-  // Build the keypad buttons
   for (const btn of BUTTONS) {
     const el = document.createElement('button');
     el.type = 'button';
@@ -137,18 +125,13 @@ export function mount(root, initialState, onEvent) {
     keypad.appendChild(el);
   }
 
-  // ─── Clear buttons (event delegation on the container) ─────────────
   historyActions.addEventListener('click', (e) => {
     const btn = e.target.closest('button[data-scope]');
     if (!btn) return;
-    if (btn.dataset.scope === 'today') {
-      onEvent({ type: 'CLEAR_HISTORY_TODAY' });
-    } else if (btn.dataset.scope === 'all') {
-      onEvent({ type: 'CLEAR_HISTORY' });
-    }
+    if (btn.dataset.scope === 'today') onEvent({ type: 'CLEAR_HISTORY_TODAY' });
+    else if (btn.dataset.scope === 'all') onEvent({ type: 'CLEAR_HISTORY' });
   });
 
-  // ─── Clicking a history entry recalls its result ────────────────────
   historyList.addEventListener('click', (e) => {
     const li = e.target.closest('li[data-result]');
     if (!li) return;
@@ -167,13 +150,9 @@ export function mount(root, initialState, onEvent) {
       }
 
       displayValue.classList.toggle('error', state.state === 'ERROR');
-
-      // Hide action buttons when there's nothing to clear
       historyActions.classList.toggle('hidden', state.history.length === 0);
 
-      // Group and render
       const groups = groupByDay(state.history);
-
       historyList.innerHTML = groups.map(g => `
         <li class="history-day">
           <div class="history-day-label">${escapeHtml(g.label)}</div>
