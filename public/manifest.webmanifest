@@ -4,6 +4,7 @@
   "description": "A professional web calculator with memory, history, and scientific functions.",
   "start_url": "/",
   "scope": "/",
+  "id": "/",
   "display": "standalone",
   "orientation": "portrait-primary",
   "background_color": "#0f1115",
