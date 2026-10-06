@@ -1,5 +1,5 @@
 // src/main.js
-// Bootstrap: tabs, state, UI, keyboard, theme, voice, sound, share, steps, graph, units.
+// Bootstrap: tabs, state, UI, keyboard, theme, voice, sound, share, steps, graph, units, formulas.
 
 import './styles/main.css';
 import './ui/panels.css';
@@ -16,6 +16,7 @@ import { mountTabs } from './ui/tabs.js';
 import { mountSteps } from './ui/steps.js';
 import { mountGraph } from './ui/graph.js';
 import { mountUnits } from './ui/units.js';
+import { mountFormulas } from './ui/formulas.js';
 
 // ─── Service worker ────────────────────────────────────────────────────
 if ('serviceWorker' in navigator) {
@@ -100,10 +101,16 @@ const unitsEl = document.createElement('div');
 tabs.registerPanel('units', unitsEl);
 const units = mountUnits(unitsEl);
 
+// ─── Mount Formulas panel ──────────────────────────────────────────────
+const formulasEl = document.createElement('div');
+tabs.registerPanel('formulas', formulasEl);
+const formulas = mountFormulas(formulasEl);
+
 // Notify panels on tab focus
 tabs.onChange((tabId) => {
-  if (tabId === 'graph') graph.refresh();
+  if (tabId === 'graph') graph.refresh?.();
   if (tabId === 'units') units.focus?.();
+  if (tabId === 'formulas') formulas.focus?.();
 });
 
 // ─── Branding footer ───────────────────────────────────────────────────
@@ -119,18 +126,14 @@ const themeToggle = document.createElement('button');
 themeToggle.className = 'theme-toggle';
 themeToggle.type = 'button';
 themeToggle.setAttribute('aria-label', 'Toggle theme');
-themeToggle.title = 'Toggle theme';
-themeToggle.innerHTML = `
-  <span class="icon">${currentTheme === 'dark' ? '☀️' : '🌙'}</span>
-  <span class="label">Mode</span>
-`;
+themeToggle.innerHTML = `<span class="icon">${currentTheme === 'dark' ? '☀️' : '🌙'}</span><span class="label">Mode</span>`;
 themeToggle.addEventListener('click', () => {
   currentTheme = currentTheme === 'dark' ? 'light' : 'dark';
   applyTheme(currentTheme);
   localStorage.setItem(THEME_KEY, currentTheme);
   localStorage.setItem(THEME_MANUAL_KEY, 'true');
   themeToggle.querySelector('.icon').textContent = currentTheme === 'dark' ? '☀️' : '🌙';
-  graph.refresh();
+  graph.refresh?.();
 });
 document.body.appendChild(themeToggle);
 
@@ -139,7 +142,7 @@ window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', ()
   currentTheme = systemTheme();
   applyTheme(currentTheme);
   themeToggle.querySelector('.icon').textContent = currentTheme === 'dark' ? '☀️' : '🌙';
-  graph.refresh();
+  graph.refresh?.();
 });
 
 // ─── Accent picker ─────────────────────────────────────────────────────
@@ -229,7 +232,7 @@ function handleEvent(event) {
   if (state.accent !== prevAccent) {
     localStorage.setItem(ACCENT_KEY, state.accent);
     accentPicker.setActive(state.accent);
-    graph.refresh();
+    graph.refresh?.();
   }
 }
 

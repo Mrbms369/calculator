@@ -26,6 +26,11 @@ export function mountFormulas(container) {
   const catsEl = container.querySelector('.formulas-cats');
   const listEl = container.querySelector('.formulas-list');
 
+  if (!catsEl || !listEl) {
+    console.error('[formulas] missing .formulas-cats or .formulas-list');
+    return { focus: () => {} };
+  }
+
   let currentCat = CATEGORY_KEYS[0];
   let expandedId = null;
 
@@ -82,7 +87,6 @@ export function mountFormulas(container) {
   });
 
   listEl.addEventListener('click', (e) => {
-    // Expand/collapse
     const toggle = e.target.closest('[data-toggle]');
     if (toggle) {
       const id = toggle.dataset.toggle;
@@ -91,7 +95,6 @@ export function mountFormulas(container) {
       return;
     }
 
-    // Compute
     const comp = e.target.closest('[data-compute]');
     if (comp) {
       const id = comp.dataset.compute;
@@ -103,8 +106,7 @@ export function mountFormulas(container) {
       for (const inp of inputs) {
         const key = inp.dataset.input;
         const raw = inp.value.trim();
-        const n = raw === '' ? NaN : Number(raw);
-        values[key] = n;
+        values[key] = raw === '' ? NaN : Number(raw);
       }
 
       const resultEl = listEl.querySelector(`[data-result="${CSS.escape(id)}"]`);
@@ -119,7 +121,6 @@ export function mountFormulas(container) {
     }
   });
 
-  // Initial render
   render();
 
   return {
