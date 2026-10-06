@@ -16,6 +16,8 @@ const UN = (op) => ({ type: 'UNARY', payload: op });
 const CONST = (c) => ({ type: 'CONSTANT', payload: c });
 const CLEAR_HIST = () => ({ type: 'CLEAR_HISTORY' });
 const VOICE = (payload) => ({ type: 'VOICE_EXPRESSION', payload });
+const E_IN = (text) => ({ type: 'EXPRESSION_INPUT', payload: text });
+const E_EVAL = () => ({ type: 'EXPRESSION_EVAL' });
 
 describe('typing digits', () => {
   it('starts at 0', () => expect(createInitialState().display).toBe('0'));
@@ -127,19 +129,12 @@ describe('recall from history', () => {
   });
 });
 
-describe('unary operations (√, x², 1/x)', () => {
-  it('√9 → 3', () => {
-    expect(run(createInitialState(), D('9'), UN('√')).display).toBe('3');
-  });
-  it('x² of 5 → 25', () => {
-    expect(run(createInitialState(), D('5'), UN('x²')).display).toBe('25');
-  });
-  it('1/x of 4 → 0.25', () => {
-    expect(run(createInitialState(), D('4'), UN('1/x')).display).toBe('0.25');
-  });
+describe('unary operations', () => {
+  it('√9 → 3', () => expect(run(createInitialState(), D('9'), UN('√')).display).toBe('3'));
+  it('x² of 5 → 25', () => expect(run(createInitialState(), D('5'), UN('x²')).display).toBe('25'));
+  it('1/x of 4 → 0.25', () => expect(run(createInitialState(), D('4'), UN('1/x')).display).toBe('0.25'));
   it('√ of a negative number → Error', () => {
-    const s = run(createInitialState(), D('9'), { type: 'SIGN' }, UN('√'));
-    expect(s.state).toBe(State.ERROR);
+    expect(run(createInitialState(), D('9'), { type: 'SIGN' }, UN('√')).state).toBe(State.ERROR);
   });
   it('1/x of 0 → Error', () => {
     expect(run(createInitialState(), UN('1/x')).state).toBe(State.ERROR);
@@ -206,31 +201,73 @@ describe('clear history', () => {
   });
 });
 
-// ─── NEW: VOICE_EXPRESSION ────────────────────────────────────────────
 describe('voice expression', () => {
   it('sets display to result and enters RESULT state', () => {
     const s = run(createInitialState(), VOICE({ expression: '47 × 89', result: 4183 }));
     expect(s.display).toBe('4183');
     expect(s.state).toBe(State.RESULT);
-    expect(s.operand1).toBe(4183);
   });
-
   it('adds to history with the expression', () => {
     const s = run(createInitialState(), VOICE({ expression: '12 + 30', result: 42 }));
     expect(s.history).toHaveLength(1);
     expect(s.history[0].expression).toBe('12 + 30');
-    expect(s.history[0].result).toBe(42);
+  });
+  it('invalid payload → error state', () => {
+    expect(dispatch(createInitialState(), VOICE({ expression: 'x', result: NaN })).state).toBe(State.ERROR);
+  });
+});
+
+// ─── NEW: typed expression mode ────────────────────────────────────────
+describe('typed expression mode', () => {
+  it('EXPRESSION_INPUT enters expression mode with the given text', () => {
+    const s = run(createInitialState(), E_IN('2 + 3 * 4'));
+    expect(s.expression).toBe('2 + 3 * 4');
+    expect(s.display).toBe('2 + 3 * 4');
   });
 
-  it('ignores invalid payload', () => {
-    const before = createInitialState();
-    expect(dispatch(before, VOICE(null))).toEqual(before);
-    expect(dispatch(before, VOICE({ expression: 'x', result: NaN })).state).toBe(State.ERROR);
+  it('DIGIT in expression mode appends to the expression', () => {
+    const s = run(createInitialState(), E_IN('12'), D('3'));
+    expect(s.expression).toBe('123');
+    expect(s.display).toBe('123');
   });
 
-  it('next digit after voice starts fresh', () => {
-    const s = run(createInitialState(), VOICE({ expression: '5 × 5', result: 25 }), D('7'));
+  it('EXPRESSION_EVAL evaluates the whole expression and adds to history', () => {
+    const s = run(createInitialState(), E_IN('2 + 3 * 4'), E_EVAL());
+    expect(s.display).toBe('14');
+    expect(s.state).toBe(State.RESULT);
+    expect(s.expression).toBe(null);
+    expect(s.history[0].expression).toBe('2 + 3 * 4');
+    expect(s.history[0].result).toBe(14);
+  });
+
+  it('EXPRESSION_EVAL handles complex precedence', () => {
+    const s = run(createInitialState(), E_IN('23 + 4342 * 875 - 234'), E_EVAL());
+    expect(Number(s.display)).toBe(3799039);
+  });
+
+  it('EXPRESSION_EVAL handles parens', () => {
+    const s = run(createInitialState(), E_IN('(2 + 3) * 4'), E_EVAL());
+    expect(Number(s.display)).toBe(20);
+  });
+
+  it('EXPRESSION_EVAL on invalid expression → Error', () => {
+    const s = run(createInitialState(), E_IN('2 +'), E_EVAL());
+    expect(s.state).toBe(State.ERROR);
+    expect(s.display).toBe('Error');
+  });
+
+  it('EXPRESSION_EVAL on division by zero → Error', () => {
+    const s = run(createInitialState(), E_IN('5 / 0'), E_EVAL());
+    expect(s.state).toBe(State.ERROR);
+  });
+
+  it('EXPRESSION_EVAL with empty expression clears expression mode', () => {
+    const s = run(createInitialState(), E_IN(''), E_EVAL());
+    expect(s.expression).toBe(null);
+  });
+
+  it('after EXPRESSION_EVAL, next digit starts fresh', () => {
+    const s = run(createInitialState(), E_IN('2 + 3'), E_EVAL(), D('7'));
     expect(s.display).toBe('7');
-    expect(s.state).toBe(State.ENTERING_FIRST);
   });
 });

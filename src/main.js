@@ -69,12 +69,12 @@ const root = document.getElementById('app');
 const ui = mount(root, state, handleEvent);
 ui.update(state);
 
-// ─── Theme toggle button ───────────────────────────────────────────────
+// ─── Theme toggle ──────────────────────────────────────────────────────
 const themeToggle = document.createElement('button');
 themeToggle.className = 'theme-toggle';
 themeToggle.type = 'button';
 themeToggle.setAttribute('aria-label', 'Toggle theme');
-themeToggle.title = 'Toggle theme (auto when untouched)';
+themeToggle.title = 'Toggle theme (auto until first manual choice)';
 themeToggle.innerHTML = `
   <span class="icon">${currentTheme === 'dark' ? '☀️' : '🌙'}</span>
   <span class="label">Mode</span>
@@ -88,7 +88,7 @@ themeToggle.addEventListener('click', () => {
 });
 document.body.appendChild(themeToggle);
 
-// ─── Auto theme: follow OS if user never chose manually ────────────────
+// ─── Auto theme ────────────────────────────────────────────────────────
 window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', () => {
   if (isThemeManual()) return;
   currentTheme = systemTheme();
@@ -96,13 +96,13 @@ window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', ()
   themeToggle.querySelector('.icon').textContent = currentTheme === 'dark' ? '☀️' : '🌙';
 });
 
-// ─── Voice input button (if supported) ─────────────────────────────────
+// ─── Voice input ───────────────────────────────────────────────────────
 if (isVoiceSupported()) {
   const micBtn = document.createElement('button');
   micBtn.className = 'mic-toggle';
   micBtn.type = 'button';
   micBtn.setAttribute('aria-label', 'Voice input');
-  micBtn.title = 'Voice input — try "47 times 89" or "twelve plus thirty"';
+  micBtn.title = 'Voice input — try "23 plus 42 times 8 minus 5"';
   micBtn.innerHTML = `
     <span class="icon">🎤</span>
     <span class="label">Voice</span>
@@ -132,17 +132,6 @@ if (isVoiceSupported()) {
   document.body.appendChild(micBtn);
 }
 
-// ─── Copy result on display click ──────────────────────────────────────
-const displayEl = root.querySelector('.display');
-if (displayEl) {
-  displayEl.setAttribute('title', 'Click to copy');
-  displayEl.style.cursor = 'pointer';
-  displayEl.addEventListener('click', () => {
-    if (state.state === 'ERROR' || state.display === 'Error') return;
-    copyToClipboard(state.display);
-  });
-}
-
 // ─── Central event handler ─────────────────────────────────────────────
 function handleEvent(event) {
   const prevHistory = state.history;
@@ -151,7 +140,7 @@ function handleEvent(event) {
   if (state.history !== prevHistory) saveHistory(state.history);
 }
 
-// ─── Keyboard support ──────────────────────────────────────────────────
+// ─── Keyboard support (only when NOT typing in the display) ────────────
 const KEY_MAP = {
   '0': { type: 'DIGIT', payload: '0' }, '1': { type: 'DIGIT', payload: '1' },
   '2': { type: 'DIGIT', payload: '2' }, '3': { type: 'DIGIT', payload: '3' },
@@ -189,10 +178,17 @@ function labelFor(event) {
 
 document.addEventListener('keydown', (e) => {
   if (e.ctrlKey || e.metaKey || e.altKey) return;
+
+  // If the user is typing in the expression display, let the browser handle it
+  const target = e.target;
+  if (target && target.isContentEditable) return;
+
   const event = KEY_MAP[e.key];
   if (!event) return;
+
   e.preventDefault();
   handleEvent(event);
+
   const label = labelFor(event);
   if (label) flashButton(root, label);
 });

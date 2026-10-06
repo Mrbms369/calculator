@@ -2,6 +2,7 @@
 // Finite state machine for the calculator's behavior.
 
 import { calculate, unary } from '../engine/calculator.js';
+import { evaluate as evaluateExpression } from '../engine/expression.js';
 
 export const CONSTANTS = Object.freeze({
   'π': Math.PI,
@@ -26,6 +27,9 @@ export function createInitialState(overrides = {}) {
     operator: null,
     memory: 0,
     history: [],
+    // The current expression string (used when user types freely)
+    // null = not in expression mode; string = expression being typed
+    expression: null,
     ...overrides,
   };
 }
@@ -46,6 +50,9 @@ export function dispatch(state, event) {
     case 'CLEAR_HISTORY':        return { ...state, history: [] };
     case 'CLEAR_HISTORY_TODAY':  return onClearHistoryToday(state, event.payload);
     case 'VOICE_EXPRESSION':     return onVoiceExpression(state, event.payload);
+    case 'EXPRESSION_INPUT':     return onExpressionInput(state, event.payload);
+    case 'EXPRESSION_EVAL':      return onExpressionEval(state);
+    // memory
     case 'MC':                   return { ...state, memory: 0 };
     case 'MR':                   return { ...state, display: String(state.memory), state: State.RESULT };
     case 'M_PLUS':               return { ...state, memory: state.memory + Number(state.display) };
@@ -54,7 +61,18 @@ export function dispatch(state, event) {
   }
 }
 
+// ─── Event handlers ───────────────────────────────────────────────────────
+
 function onDigit(state, digit) {
+  // If typing in expression mode, append to expression
+  if (state.expression != null) {
+    return {
+      ...state,
+      expression: state.expression === '0' ? digit : state.expression + digit,
+      display: state.expression === '0' ? digit : state.expression + digit,
+    };
+  }
+
   if (state.state === State.RESULT || state.state === State.ERROR) {
     return {
       ...state,
@@ -76,6 +94,12 @@ function onDigit(state, digit) {
 }
 
 function onDot(state) {
+  if (state.expression != null) {
+    if (state.expression.includes('.')) return state;
+    const next = (state.expression || '0') + '.';
+    return { ...state, expression: next, display: next };
+  }
+
   if (state.display.includes('.')) return state;
   if (state.state === State.RESULT || state.state === State.ERROR) {
     return {
@@ -90,6 +114,15 @@ function onDot(state) {
 }
 
 function onOperator(state, op) {
+  // In expression mode: append operator symbol to expression
+  if (state.expression != null) {
+    return {
+      ...state,
+      expression: state.expression + ' ' + op + ' ',
+      display: state.expression + ' ' + op + ' ',
+    };
+  }
+
   if (state.state === State.ERROR) return state;
   if (state.state === State.ENTERING_SECOND && state.operator != null && state.operand1 != null) {
     const b = Number(state.display);
@@ -113,6 +146,11 @@ function onOperator(state, op) {
 }
 
 function onEquals(state) {
+  // In expression mode: evaluate the whole expression
+  if (state.expression != null) {
+    return onExpressionEval(state);
+  }
+
   if (state.state === State.ERROR) return state;
   if (state.operator == null || state.operand1 == null) return state;
   const b = Number(state.display);
@@ -134,6 +172,13 @@ function onClear(state) {
 }
 
 function onSign(state) {
+  if (state.expression != null) {
+    // Toggle leading minus
+    const e = state.expression;
+    const next = e.startsWith('-') ? e.slice(1) : '-' + e;
+    return { ...state, expression: next, display: next };
+  }
+
   if (state.state === State.ERROR) return state;
   if (state.display === '0') return state;
   const toggled = state.display.startsWith('-') ? state.display.slice(1) : '-' + state.display;
@@ -141,6 +186,10 @@ function onSign(state) {
 }
 
 function onPercent(state) {
+  if (state.expression != null) {
+    return { ...state, expression: state.expression + '%', display: state.expression + '%' };
+  }
+
   if (state.state === State.ERROR) return state;
   try {
     const result = unary('%', Number(state.display));
@@ -151,6 +200,12 @@ function onPercent(state) {
 }
 
 function onBackspace(state) {
+  if (state.expression != null) {
+    const e = state.expression;
+    const next = e.length <= 1 ? '0' : e.slice(0, -1);
+    return { ...state, expression: next === '0' ? '0' : next, display: next };
+  }
+
   if (state.state === State.RESULT || state.state === State.ERROR) return state;
   const current = state.display;
   if (current.length <= 1 || (current.length === 2 && current.startsWith('-'))) {
@@ -165,10 +220,16 @@ function onRecallHistory(state, value) {
   return {
     ...state, state: State.RESULT, display: String(value),
     operand1: num, operand2: null, operator: null,
+    expression: null,
   };
 }
 
 function onUnary(state, op) {
+  if (state.expression != null) {
+    const next = state.expression + op;
+    return { ...state, expression: next, display: next };
+  }
+
   if (state.state === State.ERROR) return state;
   const n = Number(state.display);
   if (!Number.isFinite(n)) return { ...state, state: State.ERROR, display: 'Error' };
@@ -187,6 +248,12 @@ function onUnary(state, op) {
 function onConstant(state, symbol) {
   const value = CONSTANTS[symbol];
   if (value == null) return state;
+
+  if (state.expression != null) {
+    const next = state.expression + symbol;
+    return { ...state, expression: next, display: next };
+  }
+
   return {
     ...state, state: State.RESULT, display: String(value),
     operand1: value, operand2: null, operator: null,
@@ -213,6 +280,55 @@ function onVoiceExpression(state, payload) {
     operand1: result,
     operand2: null,
     operator: null,
+    expression: null,
     history: [...state.history, { expression, result, ts: Date.now() }],
   };
+}
+
+/**
+ * User started typing an expression — enter expression mode.
+ * Payload: string (the current text) or undefined (start empty)
+ */
+function onExpressionInput(state, payload) {
+  const text = typeof payload === 'string' ? payload : state.display;
+  return {
+    ...state,
+    expression: text,
+    display: text,
+  };
+}
+
+/**
+ * Evaluate the current expression string.
+ * Clears expression mode and shows the result.
+ */
+function onExpressionEval(state) {
+  const expr = state.expression;
+  if (expr == null || expr.trim() === '') {
+    return { ...state, expression: null };
+  }
+
+  try {
+    const result = evaluateExpression(expr);
+    if (!Number.isFinite(result)) {
+      return { ...state, state: State.ERROR, display: 'Error', expression: null };
+    }
+    return {
+      ...state,
+      state: State.RESULT,
+      display: String(result),
+      operand1: result,
+      operand2: null,
+      operator: null,
+      expression: null,
+      history: [...state.history, { expression: expr, result, ts: Date.now() }],
+    };
+  } catch (err) {
+    return {
+      ...state,
+      state: State.ERROR,
+      display: 'Error',
+      expression: null,
+    };
+  }
 }

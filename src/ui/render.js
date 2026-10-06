@@ -91,17 +91,17 @@ export function mount(root, initialState, onEvent) {
   root.innerHTML = `
     <div class="calculator">
       <h1 class="app-title">BMs Calculator</h1>
-      <div class="display" role="status" aria-live="polite">
+      <div class="display" role="status" aria-live="polite" tabindex="0" title="Click or press any key to type an expression">
         <div class="history-preview" aria-hidden="true"></div>
-        <div class="current-value">0</div>
+        <div class="current-value" contenteditable="true" spellcheck="false" inputmode="text">0</div>
       </div>
       <div class="keypad"></div>
       <aside class="history-panel" aria-label="Calculation history">
         <header class="history-header">
           <h3>History</h3>
           <div class="history-actions">
-            <button type="button" class="history-clear" data-scope="today" title="Clear today's history">Today</button>
-            <button type="button" class="history-clear" data-scope="all"   title="Clear all history">All</button>
+            <button type="button" class="history-clear" data-scope="today">Today</button>
+            <button type="button" class="history-clear" data-scope="all">All</button>
           </div>
         </header>
         <ul class="history-list"></ul>
@@ -114,6 +114,7 @@ export function mount(root, initialState, onEvent) {
   const historyPreview  = root.querySelector('.history-preview');
   const historyList     = root.querySelector('.history-list');
   const historyActions  = root.querySelector('.history-actions');
+  const displayEl       = root.querySelector('.display');
 
   for (const btn of BUTTONS) {
     const el = document.createElement('button');
@@ -138,9 +139,56 @@ export function mount(root, initialState, onEvent) {
     onEvent({ type: 'RECALL_HISTORY', payload: li.dataset.result });
   });
 
+  // ─── Expression mode wiring ─────────────────────────────────────────
+  let isExpressionMode = false;
+  let suppressInputEvent = false;
+
+  displayValue.addEventListener('focus', () => {
+    if (!isExpressionMode) {
+      isExpressionMode = true;
+      onEvent({ type: 'EXPRESSION_INPUT' });
+    }
+  });
+
+  displayValue.addEventListener('input', () => {
+    if (suppressInputEvent) return;
+    onEvent({ type: 'EXPRESSION_INPUT', payload: displayValue.textContent || '' });
+  });
+
+  displayValue.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      onEvent({ type: 'EXPRESSION_EVAL' });
+      isExpressionMode = false;
+      displayValue.blur();
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      onEvent({ type: 'CLEAR' });
+      isExpressionMode = false;
+      displayValue.blur();
+    }
+  });
+
+  displayValue.addEventListener('blur', () => {
+    isExpressionMode = false;
+  });
+
+  displayEl.addEventListener('click', () => {
+    displayValue.focus();
+  });
+
   return {
     update(state) {
-      displayValue.textContent = state.display;
+      // Only update the display text if NOT in expression mode,
+      // otherwise we'd overwrite what the user is typing.
+      if (!isExpressionMode) {
+        const text = state.display;
+        if (displayValue.textContent !== text) {
+          suppressInputEvent = true;
+          displayValue.textContent = text;
+          suppressInputEvent = false;
+        }
+      }
 
       if ((state.state === 'OPERATOR_PENDING' || state.state === 'ENTERING_SECOND')
           && state.operand1 != null && state.operator) {
