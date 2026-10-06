@@ -9,6 +9,7 @@ import { isVoiceSupported, listenOnce, parseSpokenExpression, speak } from './ui
 import { feedback, soundForEvent, setEnabled as setSoundEnabled, isEnabled as isSoundEnabled } from './ui/sound.js';
 import { shareResult } from './ui/share.js';
 import { mountBranding } from './ui/branding.js';
+import { mountAccentPicker } from './ui/accentPicker.js';
 
 // ─── Service worker (PWA) ──────────────────────────────────────────────
 if ('serviceWorker' in navigator) {
@@ -49,7 +50,6 @@ function loadSoundEnabled() {
   const stored = localStorage.getItem(SOUND_KEY);
   return stored === null ? true : stored === 'true';
 }
-
 setSoundEnabled(loadSoundEnabled());
 
 // ─── History persistence ───────────────────────────────────────────────
@@ -110,23 +110,12 @@ window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', ()
   themeToggle.querySelector('.icon').textContent = currentTheme === 'dark' ? '☀️' : '🌙';
 });
 
-// ─── Accent picker ─────────────────────────────────────────────────────
-const accentPicker = document.createElement('button');
-accentPicker.className = 'accent-toggle';
-accentPicker.type = 'button';
-accentPicker.setAttribute('aria-label', 'Choose accent color');
-accentPicker.title = 'Accent color';
-accentPicker.innerHTML = `
-  <span class="swatch"></span>
-  <span class="label">Color</span>
-`;
-accentPicker.addEventListener('click', () => {
-  const list = Object.keys(ACCENTS);
-  const idx = list.indexOf(state.accent);
-  const next = list[(idx + 1) % list.length];
-  handleEvent({ type: 'SET_ACCENT', payload: next });
-});
-document.body.appendChild(accentPicker);
+// ─── Accent picker (popover with swatches) ─────────────────────────────
+const accentPicker = mountAccentPicker(
+  document.body,
+  () => state.accent,
+  (key) => handleEvent({ type: 'SET_ACCENT', payload: key }),
+);
 
 // ─── Sound toggle ──────────────────────────────────────────────────────
 const soundToggle = document.createElement('button');
@@ -181,7 +170,6 @@ if (isVoiceSupported()) {
 
 // ─── Share handler ─────────────────────────────────────────────────────
 async function handleShare() {
-  // Find the most recent calculation to share
   const last = state.history[state.history.length - 1];
   if (!last) {
     copyToClipboard('Nothing to share yet');
@@ -204,13 +192,11 @@ async function handleShare() {
 
 // ─── Central event handler ─────────────────────────────────────────────
 function handleEvent(event) {
-  // Special event used by the Share button (not a state machine event)
   if (event.type === '__SHARE__') {
     handleShare();
     return;
   }
 
-  // Sound + haptic feedback for real dispatches
   const kind = soundForEvent(event);
   feedback(kind);
 
@@ -222,16 +208,8 @@ function handleEvent(event) {
   if (state.history !== prevHistory) saveHistory(state.history);
   if (state.accent !== prevAccent) {
     localStorage.setItem(ACCENT_KEY, state.accent);
-    // Update the accent swatch color on the picker
-    const swatch = accentPicker.querySelector('.swatch');
-    swatch.style.background = ACCENTS[state.accent] || ACCENTS.orange;
+    accentPicker.setActive(state.accent);
   }
-}
-
-// Initialize swatch color
-{
-  const swatch = accentPicker.querySelector('.swatch');
-  swatch.style.background = ACCENTS[state.accent] || ACCENTS.orange;
 }
 
 // ─── Keyboard support ──────────────────────────────────────────────────
