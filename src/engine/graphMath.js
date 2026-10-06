@@ -6,13 +6,13 @@ const ALLOWED_NAMES = new Set([
   'x',
   'sin', 'cos', 'tan',
   'asin', 'acos', 'atan',
+  'arcsin', 'arccos', 'arctan',
   'sinh', 'cosh', 'tanh',
-  'sqrt', 'abs', 'exp', 'log', 'ln', 'log2', 'log10',
-  'floor', 'ceil', 'round', 'sign', 'min', 'max', 'pow',
+  'sqrt', 'cbrt', 'abs', 'exp', 'log', 'ln', 'log2', 'log10',
+  'floor', 'ceil', 'round', 'sign', 'min', 'max', 'pow', 'mod',
   'PI', 'pi', 'E', 'e',
 ]);
 
-// Substitute common math aliases to JS equivalents
 const MATH_CONSTANTS = {
   PI: 'Math.PI',
   pi: 'Math.PI',
@@ -27,14 +27,18 @@ const MATH_FUNCTIONS = {
   asin:  'Math.asin',
   acos:  'Math.acos',
   atan:  'Math.atan',
+  arcsin:'Math.asin',
+  arccos:'Math.acos',
+  arctan:'Math.atan',
   sinh:  'Math.sinh',
   cosh:  'Math.cosh',
   tanh:  'Math.tanh',
   sqrt:  'Math.sqrt',
+  cbrt:  'Math.cbrt',
   abs:   'Math.abs',
   exp:   'Math.exp',
-  log:   'Math.log',      // natural log in JS
-  ln:    'Math.log',      // alias for natural log
+  log:   'Math.log',
+  ln:    'Math.log',
   log2:  'Math.log2',
   log10: 'Math.log10',
   floor: 'Math.floor',
@@ -44,72 +48,57 @@ const MATH_FUNCTIONS = {
   min:   'Math.min',
   max:   'Math.max',
   pow:   'Math.pow',
+  mod:   'mod',
 };
 
-/**
- * Compile a user expression string into a callable function.
- * @param {string} input  e.g. "sin(x) + x^2"
- * @returns {(x: number) => number}
- * @throws {Error} on invalid syntax or forbidden identifiers
- */
 export function compileFunction(input) {
   if (typeof input !== 'string') throw new Error('Expression must be a string');
   let s = input.trim();
   if (!s) throw new Error('Empty expression');
 
-  // Allow users to write "y = ..." — strip the LHS
   s = s.replace(/^\s*y\s*=\s*/i, '');
 
-  // Tokenize identifiers to validate them (letters followed by digits/underscores)
   const identifiers = s.match(/[A-Za-z_][A-Za-z0-9_]*/g) || [];
   for (const id of identifiers) {
-    if (!ALLOWED_NAMES.has(id)) {
-      throw new Error(`Unknown name: "${id}"`);
-    }
+    if (!ALLOWED_NAMES.has(id)) throw new Error(`Unknown name: "${id}"`);
   }
 
-  // Replace ^ with ** for exponentiation
   s = s.replace(/\^/g, '**');
 
-  // Replace known functions and constants with their Math.* equivalents.
-  // Use word boundaries to avoid partial matches.
-  s = s.replace(/\b([A-Za-z_][A-Za-z0-9_]*)\b/g, (match) => {
-    if (MATH_FUNCTIONS[match]) return MATH_FUNCTIONS[match];
-    if (MATH_CONSTANTS[match]) return MATH_CONSTANTS[match];
-    return match;
+  s = s.replace(/\b([A-Za-z_][A-Za-z0-9_]*)\b/g, (m) => {
+    if (MATH_FUNCTIONS[m]) return MATH_FUNCTIONS[m];
+    if (MATH_CONSTANTS[m]) return MATH_CONSTANTS[m];
+    return m;
   });
 
-  // Now the string should only contain: x, digits, operators, parens, dots, commas, spaces, and Math.*
-  // Sanity check: only allow specific characters (plus the "Math." prefix)
-  const cleaned = s.replace(/Math\./g, '');
+  const cleaned = s.replace(/Math\./g, '').replace(/mod/g, '');
   if (/[^0-9a-zA-Z+\-*/%().,^<>=!?\s]/.test(cleaned)) {
     throw new Error('Expression contains invalid characters');
   }
 
-  // Final whitelist check — any remaining identifier must be x, Math, or a known Math method
   const remainingIds = s.match(/[A-Za-z_][A-Za-z0-9_]*/g) || [];
-  const ALLOWED_AFTER_TRANSFORM = new Set([
-    'x', 'Math',
+  const ALLOWED_AFTER = new Set([
+    'x', 'Math', 'mod',
     'sin','cos','tan','asin','acos','atan',
     'sinh','cosh','tanh',
-    'sqrt','abs','exp','log','log2','log10',
+    'sqrt','cbrt','abs','exp','log','log2','log10',
     'floor','ceil','round','sign','min','max','pow',
     'PI','E',
   ]);
   for (const id of remainingIds) {
-    if (!ALLOWED_AFTER_TRANSFORM.has(id)) {
-      throw new Error(`Forbidden name after transform: "${id}"`);
-    }
+    if (!ALLOWED_AFTER.has(id)) throw new Error(`Forbidden name: "${id}"`);
   }
+
+  const mod = (a, b) => ((a % b) + b) % b;
 
   let fn;
   try {
-    fn = new Function('x', `return (${s});`);
+    const inner = new Function('x', 'mod', `return (${s});`);
+    fn = (x) => inner(x, mod);
   } catch (err) {
     throw new Error(`Syntax error: ${err.message}`);
   }
 
-  // Smoke test
   try {
     const testVal = fn(0);
     if (typeof testVal !== 'number') throw new Error('Did not return a number');
@@ -120,14 +109,6 @@ export function compileFunction(input) {
   return fn;
 }
 
-/**
- * Sample the function across a domain to produce points for the graph.
- * @param {(x:number)=>number} fn
- * @param {number} xMin
- * @param {number} xMax
- * @param {number} samples
- * @returns {Array<{x:number, y:number}>}
- */
 export function sampleFunction(fn, xMin, xMax, samples = 600) {
   const pts = [];
   const dx = (xMax - xMin) / (samples - 1);
@@ -138,4 +119,20 @@ export function sampleFunction(fn, xMin, xMax, samples = 600) {
     pts.push({ x, y: Number.isFinite(y) ? y : NaN });
   }
   return pts;
+}
+
+/**
+ * Robust y-range that ignores extreme outliers (uses percentiles).
+ */
+export function robustYRange(pts, percentile = 0.05) {
+  const finite = pts.map(p => p.y).filter(Number.isFinite).sort((a, b) => a - b);
+  if (finite.length === 0) return { yMin: -10, yMax: 10 };
+
+  const lo = finite[Math.floor(finite.length * percentile)];
+  const hi = finite[Math.floor(finite.length * (1 - percentile))];
+
+  if (lo === hi) return { yMin: lo - 1, yMax: hi + 1 };
+
+  const pad = (hi - lo) * 0.1;
+  return { yMin: lo - pad, yMax: hi + pad };
 }
