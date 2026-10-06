@@ -1,0 +1,161 @@
+/* src/ui/panels.css — styles for tabs + steps + graph + units + programmer */
+
+/* ── Wrapper + Tabs ───────────────────────────────────── */
+.app-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  max-width: 620px;
+}
+
+.tab-bar {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  background: var(--panel);
+  border-radius: 14px;
+  box-shadow: var(--shadow);
+}
+
+.tab-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border: none;
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background .15s, color .15s;
+}
+
+.tab-btn:hover { background: var(--btn-hover); color: var(--text); }
+
+.tab-btn--active {
+  background: var(--accent, var(--btn-op));
+  color: #fff;
+}
+
+.tab-btn .tab-icon { font-size: 15px; }
+.tab-btn .tab-label { letter-spacing: .3px; }
+
+.tab-panels { width: 100%; }
+
+.tab-panel { display: none; }
+.tab-panel--active { display: block; }
+
+/* ── Steps panel (slides up from bottom of calculator) ─ */
+.steps-panel {
+  position: fixed;
+  left: 50%;
+  bottom: 0;
+  transform: translate(-50%, 100%);
+  width: min(500px, calc(100vw - 32px));
+  max-height: 60vh;
+  background: var(--panel);
+  border-radius: 20px 20px 0 0;
+  box-shadow: 0 -8px 40px rgba(0,0,0,.4);
+  z-index: 400;
+  display: flex;
+  flex-direction: column;
+  transition: transform .3s cubic-bezier(0.16, 1, 0.3, 1);
+  pointer-events: none;
+}
+
+.steps-panel--visible {
+  transform: translate(-50%, 0);
+  pointer-events: auto;
+}
+
+.steps-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 18px;
+  border-bottom: 1px solid rgba(255,255,255,.06);
+}
+
+[data-theme="light"] .steps-header { border-color: rgba(0,0,0,.06); }
+
+.steps-header h3 {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.steps-close {
+  background: transparent;
+  border: none;
+  color: var(--text-dim);
+  font-size: 22px;
+  line-height: 1;
+  padding: 0 6px;
+  cursor: pointer;
+  border-radius: 6px;
+}
+
+.steps-close:hover { color: var(--error); background: rgba(255,82,82,.1); }
+
+.steps-body {
+  padding: 12px 18px 20px;
+  overflow-y: auto;
+}
+
+.steps-empty {
+  color: var(--text-dim);
+  font-size: 13px;
+  text-align: center;
+  padding: 24px 8px;
+  line-height: 1.6;
+}
+
+.steps-empty strong { color: var(--text); }
+
+.steps-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: step;
+}
+
+.steps-list li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 4px;
+  border-bottom: 1px solid rgba(255,255,255,.05);
+  font-size: 15px;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+[data-theme="light"] .steps-list li { border-color: rgba(0,0,0,.05); }
+
+.steps-list li:last-child { border-bottom: none; }
+
+.step-num {
+  flex: 0 0 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  background: color-mix(in srgb, var(--accent, var(--btn-op)) 15%, transparent);
+  color: var(--accent, var(--btn-op));
+  border-radius: 50%;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.step-text { flex: 1; }
+
+.step-final .step-num { background: color-mix(in srgb, #2ecc71 20%, transparent); color: #2ecc71; }
+.step-final .step-text strong { color: var(--accent, var(--btn-op)); font-size: 17px; }
+
+.step-error { color: var(--error); font-style: italic; }

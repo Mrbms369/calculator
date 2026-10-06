@@ -1,7 +1,9 @@
 // src/main.js
-// Bootstrap: state, UI, keyboard, theme, voice, sound, share, PWA, persistence.
+// Bootstrap: tabs, state, UI, keyboard, theme, voice, sound, share, steps.
 
 import './styles/main.css';
+import './ui/panels.css';
+
 import { createInitialState, dispatch, ACCENTS } from './state/machine.js';
 import { mount, flashButton } from './ui/render.js';
 import { copyToClipboard } from './ui/toast.js';
@@ -10,8 +12,10 @@ import { feedback, soundForEvent, setEnabled as setSoundEnabled, isEnabled as is
 import { shareResult } from './ui/share.js';
 import { mountBranding } from './ui/branding.js';
 import { mountAccentPicker } from './ui/accentPicker.js';
+import { mountTabs } from './ui/tabs.js';
+import { mountSteps } from './ui/steps.js';
 
-// ─── Service worker (PWA) ──────────────────────────────────────────────
+// ─── Service worker ────────────────────────────────────────────────────
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/sw.js').catch((err) => console.warn('SW:', err));
@@ -52,7 +56,7 @@ function loadSoundEnabled() {
 }
 setSoundEnabled(loadSoundEnabled());
 
-// ─── History persistence ───────────────────────────────────────────────
+// ─── History ───────────────────────────────────────────────────────────
 function loadHistory() {
   try {
     const raw = localStorage.getItem(HISTORY_KEY);
@@ -70,18 +74,27 @@ function saveHistory(history) {
   try { localStorage.setItem(HISTORY_KEY, JSON.stringify(history.slice(-MAX_HISTORY))); } catch {}
 }
 
+// ─── Tabs setup ────────────────────────────────────────────────────────
+const appRoot = document.getElementById('app');
+const tabs = mountTabs(appRoot, appRoot);
+
 // ─── State ─────────────────────────────────────────────────────────────
 let state = createInitialState({
   history: loadHistory(),
   accent: loadAccent(),
 });
-const root = document.getElementById('app');
 
-const ui = mount(root, state, handleEvent);
+// The UI mounts into the calculator panel (which tabs.js already holds)
+const ui = mount(appRoot, state, handleEvent);
 ui.update(state);
 
 // ─── Branding footer ───────────────────────────────────────────────────
 mountBranding();
+
+// ─── Steps panel (slides up when a new calc completes) ─────────────────
+const stepsContainer = document.createElement('div');
+document.body.appendChild(stepsContainer);
+const steps = mountSteps(stepsContainer);
 
 // ─── Theme toggle ──────────────────────────────────────────────────────
 const themeToggle = document.createElement('button');
@@ -102,7 +115,6 @@ themeToggle.addEventListener('click', () => {
 });
 document.body.appendChild(themeToggle);
 
-// ─── Auto theme ────────────────────────────────────────────────────────
 window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', () => {
   if (isThemeManual()) return;
   currentTheme = systemTheme();
@@ -110,7 +122,7 @@ window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', ()
   themeToggle.querySelector('.icon').textContent = currentTheme === 'dark' ? '☀️' : '🌙';
 });
 
-// ─── Accent picker (popover with swatches) ─────────────────────────────
+// ─── Accent picker ─────────────────────────────────────────────────────
 const accentPicker = mountAccentPicker(
   document.body,
   () => state.accent,
@@ -122,7 +134,6 @@ const soundToggle = document.createElement('button');
 soundToggle.className = 'sound-toggle';
 soundToggle.type = 'button';
 soundToggle.setAttribute('aria-label', 'Toggle sound');
-soundToggle.title = 'Sound on/off';
 soundToggle.innerHTML = `<span class="icon">${isSoundEnabled() ? '🔊' : '🔇'}</span>`;
 soundToggle.addEventListener('click', () => {
   const next = !isSoundEnabled();
@@ -138,12 +149,7 @@ if (isVoiceSupported()) {
   micBtn.className = 'mic-toggle';
   micBtn.type = 'button';
   micBtn.setAttribute('aria-label', 'Voice input');
-  micBtn.title = 'Voice input — try "23 plus 42 times 8 minus 5"';
-  micBtn.innerHTML = `
-    <span class="icon">🎤</span>
-    <span class="label">Voice</span>
-  `;
-
+  micBtn.innerHTML = `<span class="icon">🎤</span><span class="label">Voice</span>`;
   micBtn.addEventListener('click', async () => {
     if (micBtn.classList.contains('listening')) return;
     micBtn.classList.add('listening');
@@ -154,46 +160,34 @@ if (isVoiceSupported()) {
         if (parsed) {
           handleEvent({ type: 'VOICE_EXPRESSION', payload: parsed });
           speak(`${parsed.expression} equals ${parsed.result}`);
-        } else {
-          speak('Sorry, I did not understand');
-        }
+        } else speak('Sorry, I did not understand');
       }
-    } catch (err) {
-      console.warn('Voice error:', err);
-    } finally {
-      micBtn.classList.remove('listening');
-    }
+    } catch (err) { console.warn('Voice error:', err); }
+    finally { micBtn.classList.remove('listening'); }
   });
-
   document.body.appendChild(micBtn);
 }
 
-// ─── Share handler ─────────────────────────────────────────────────────
+// ─── Share ─────────────────────────────────────────────────────────────
 async function handleShare() {
   const last = state.history[state.history.length - 1];
-  if (!last) {
-    copyToClipboard('Nothing to share yet');
-    return;
-  }
+  if (!last) { copyToClipboard('Nothing to share yet'); return; }
   try {
     const outcome = await shareResult({
       expression: last.expression,
       result: last.result,
       theme: currentTheme,
     });
-    if (outcome === 'downloaded') {
-      copyToClipboard('Image downloaded');
-    }
-  } catch (err) {
-    console.warn('Share failed:', err);
-    copyToClipboard('Share failed');
-  }
+    if (outcome === 'downloaded') copyToClipboard('Image downloaded');
+  } catch (err) { console.warn('Share failed:', err); copyToClipboard('Share failed'); }
 }
 
 // ─── Central event handler ─────────────────────────────────────────────
 function handleEvent(event) {
-  if (event.type === '__SHARE__') {
-    handleShare();
+  if (event.type === '__SHARE__') { handleShare(); return; }
+  if (event.type === '__SHOW_STEPS__') {
+    const last = state.history[state.history.length - 1];
+    if (last) steps.show(last.expression);
     return;
   }
 
@@ -205,14 +199,22 @@ function handleEvent(event) {
   state = dispatch(state, event);
   ui.update(state);
 
-  if (state.history !== prevHistory) saveHistory(state.history);
+  if (state.history !== prevHistory) {
+    saveHistory(state.history);
+
+    // Auto-show steps for the newest calculation
+    const last = state.history[state.history.length - 1];
+    if (last && state.history.length > prevHistory.length) {
+      steps.show(last.expression);
+    }
+  }
   if (state.accent !== prevAccent) {
     localStorage.setItem(ACCENT_KEY, state.accent);
     accentPicker.setActive(state.accent);
   }
 }
 
-// ─── Keyboard support ──────────────────────────────────────────────────
+// ─── Keyboard ──────────────────────────────────────────────────────────
 const KEY_MAP = {
   '0': { type: 'DIGIT', payload: '0' }, '1': { type: 'DIGIT', payload: '1' },
   '2': { type: 'DIGIT', payload: '2' }, '3': { type: 'DIGIT', payload: '3' },
@@ -257,5 +259,5 @@ document.addEventListener('keydown', (e) => {
   e.preventDefault();
   handleEvent(event);
   const label = labelFor(event);
-  if (label) flashButton(root, label);
+  if (label) flashButton(appRoot, label);
 });
