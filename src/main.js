@@ -1,5 +1,5 @@
 // src/main.js
-// Bootstrap: tabs, state, UI, keyboard, theme, voice, sound, share, steps, graph.
+// Bootstrap: tabs, state, UI, keyboard, theme, voice, sound, share, steps, graph, units.
 
 import './styles/main.css';
 import './ui/panels.css';
@@ -15,6 +15,7 @@ import { mountAccentPicker } from './ui/accentPicker.js';
 import { mountTabs } from './ui/tabs.js';
 import { mountSteps } from './ui/steps.js';
 import { mountGraph } from './ui/graph.js';
+import { mountUnits } from './ui/units.js';
 
 // ─── Service worker ────────────────────────────────────────────────────
 if ('serviceWorker' in navigator) {
@@ -94,9 +95,15 @@ const graphEl = document.createElement('div');
 tabs.registerPanel('graph', graphEl);
 const graph = mountGraph(graphEl);
 
-// Notify graph on tab focus
+// ─── Mount Units panel ─────────────────────────────────────────────────
+const unitsEl = document.createElement('div');
+tabs.registerPanel('units', unitsEl);
+const units = mountUnits(unitsEl);
+
+// Notify panels on tab focus
 tabs.onChange((tabId) => {
   if (tabId === 'graph') graph.refresh();
+  if (tabId === 'units') units.focus?.();
 });
 
 // ─── Branding footer ───────────────────────────────────────────────────
@@ -266,7 +273,7 @@ document.addEventListener('keydown', (e) => {
   if (e.ctrlKey || e.metaKey || e.altKey) return;
   const target = e.target;
   if (target && target.isContentEditable) return;
-  if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) return;
+  if (target && (target.tagName === 'INPUT' || target.tagName === 'SELECT' || target.tagName === 'TEXTAREA')) return;
   const event = KEY_MAP[e.key];
   if (!event) return;
   e.preventDefault();

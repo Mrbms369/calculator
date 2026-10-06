@@ -65,7 +65,7 @@
   letter-spacing: .3px;
 }
 
-/* ── Steps panel (slides up from bottom of calculator) ─ */
+/* ── Steps panel ──────────────────────────────────────── */
 .steps-panel {
   position: fixed;
   left: 50%;
@@ -120,10 +120,7 @@
 
 .steps-close:hover { color: var(--error); background: rgba(255,82,82,.1); }
 
-.steps-body {
-  padding: 12px 18px 20px;
-  overflow-y: auto;
-}
+.steps-body { padding: 12px 18px 20px; overflow-y: auto; }
 
 .steps-empty {
   color: var(--text-dim);
@@ -135,12 +132,7 @@
 
 .steps-empty strong { color: var(--text); }
 
-.steps-list {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  counter-reset: step;
-}
+.steps-list { margin: 0; padding: 0; list-style: none; }
 
 .steps-list li {
   display: flex;
@@ -154,7 +146,6 @@
 }
 
 [data-theme="light"] .steps-list li { border-color: rgba(0,0,0,.05); }
-
 .steps-list li:last-child { border-bottom: none; }
 
 .step-num {
@@ -177,11 +168,7 @@
 .step-error { color: var(--error); font-style: italic; }
 
 /* ── Graph panel ──────────────────────────────────────── */
-.graph-panel {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
+.graph-panel { display: flex; flex-direction: column; gap: 12px; }
 
 .graph-controls {
   display: grid;
@@ -190,11 +177,7 @@
   align-items: center;
 }
 
-.graph-label {
-  font-size: 16px;
-  font-weight: 600;
-  color: var(--text-dim);
-}
+.graph-label { font-size: 16px; font-weight: 600; color: var(--text-dim); }
 
 .graph-input {
   padding: 10px 14px;
@@ -209,7 +192,6 @@
 }
 
 [data-theme="light"] .graph-input { border-color: rgba(0,0,0,.08); }
-
 .graph-input:focus { border-color: var(--accent); }
 
 .graph-btn {
@@ -229,12 +211,7 @@
 .graph-btn--plot  { background: var(--accent); color: #fff; }
 .graph-btn--plot:hover { background: var(--accent-hover); }
 
-.graph-hint {
-  font-size: 12px;
-  color: var(--text-dim);
-  line-height: 1.5;
-}
-
+.graph-hint { font-size: 12px; color: var(--text-dim); line-height: 1.5; }
 .graph-hint code {
   background: var(--display-bg);
   padding: 1px 5px;
@@ -251,12 +228,7 @@
   aspect-ratio: 3 / 2;
 }
 
-.graph-canvas {
-  display: block;
-  width: 100%;
-  height: 100%;
-  touch-action: none;
-}
+.graph-canvas { display: block; width: 100%; height: 100%; touch-action: none; }
 
 .graph-error {
   position: absolute;
@@ -269,12 +241,7 @@
   border: 1px solid rgba(255, 82, 82, .3);
 }
 
-.graph-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
+.graph-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 
 .graph-range {
   margin-left: auto;
@@ -282,3 +249,117 @@
   color: var(--text-dim);
   font-variant-numeric: tabular-nums;
 }
+
+/* ── Unit converter panel ─────────────────────────────── */
+.units-panel { display: flex; flex-direction: column; gap: 16px; }
+
+.units-cats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.units-cat {
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,.08);
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background .12s, color .12s, border-color .12s;
+}
+
+[data-theme="light"] .units-cat { border-color: rgba(0,0,0,.08); }
+
+.units-cat:hover { background: var(--btn-hover); color: var(--text); }
+
+.units-cat--active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.units-row {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: 12px;
+  align-items: end;
+}
+
+.units-row:has(.units-result-field) {
+  grid-template-columns: 1fr 1fr;
+}
+
+.units-field { display: flex; flex-direction: column; gap: 6px; }
+
+.units-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.units-select,
+.units-input {
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,.08);
+  background: var(--display-bg);
+  color: var(--text);
+  font-size: 14px;
+  outline: none;
+  transition: border-color .15s;
+}
+
+[data-theme="light"] .units-select,
+[data-theme="light"] .units-input { border-color: rgba(0,0,0,.08); }
+
+.units-select:focus,
+.units-input:focus { border-color: var(--accent); }
+
+.units-input {
+  font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+  font-size: 16px;
+  font-variant-numeric: tabular-nums;
+}
+
+.units-swap {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: none;
+  background: var(--btn);
+  color: var(--text);
+  font-size: 18px;
+  cursor: pointer;
+  transition: background .12s, transform .12s;
+  align-self: end;
+  margin-bottom: 5px;
+}
+
+.units-swap:hover  { background: var(--btn-hover); transform: rotate(180deg); }
+.units-swap:active { transform: scale(0.94); }
+
+.units-result {
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--display-bg);
+  color: var(--accent);
+  font-size: 20px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.units-result-error { color: var(--error); font-size: 13px; font-weight: 500; }
+
+.units-hint { font-size: 12px; color: var(--text-dim); text-align: center; }
