@@ -9,6 +9,15 @@ export const CONSTANTS = Object.freeze({
   'e': Math.E,
 });
 
+export const ACCENTS = Object.freeze({
+  orange: '#ff9500',
+  green:  '#2ecc71',
+  blue:   '#3b9bff',
+  red:    '#ff5252',
+  purple: '#a855f7',
+  pink:   '#ec4899',
+});
+
 export const State = Object.freeze({
   IDLE:             'IDLE',
   ENTERING_FIRST:   'ENTERING_FIRST',
@@ -27,9 +36,8 @@ export function createInitialState(overrides = {}) {
     operator: null,
     memory: 0,
     history: [],
-    // The current expression string (used when user types freely)
-    // null = not in expression mode; string = expression being typed
     expression: null,
+    accent: 'orange',
     ...overrides,
   };
 }
@@ -52,7 +60,7 @@ export function dispatch(state, event) {
     case 'VOICE_EXPRESSION':     return onVoiceExpression(state, event.payload);
     case 'EXPRESSION_INPUT':     return onExpressionInput(state, event.payload);
     case 'EXPRESSION_EVAL':      return onExpressionEval(state);
-    // memory
+    case 'SET_ACCENT':           return onSetAccent(state, event.payload);
     case 'MC':                   return { ...state, memory: 0 };
     case 'MR':                   return { ...state, display: String(state.memory), state: State.RESULT };
     case 'M_PLUS':               return { ...state, memory: state.memory + Number(state.display) };
@@ -64,13 +72,9 @@ export function dispatch(state, event) {
 // ─── Event handlers ───────────────────────────────────────────────────────
 
 function onDigit(state, digit) {
-  // If typing in expression mode, append to expression
   if (state.expression != null) {
-    return {
-      ...state,
-      expression: state.expression === '0' ? digit : state.expression + digit,
-      display: state.expression === '0' ? digit : state.expression + digit,
-    };
+    const next = state.expression === '0' ? digit : state.expression + digit;
+    return { ...state, expression: next, display: next };
   }
 
   if (state.state === State.RESULT || state.state === State.ERROR) {
@@ -114,7 +118,6 @@ function onDot(state) {
 }
 
 function onOperator(state, op) {
-  // In expression mode: append operator symbol to expression
   if (state.expression != null) {
     return {
       ...state,
@@ -146,13 +149,16 @@ function onOperator(state, op) {
 }
 
 function onEquals(state) {
-  // In expression mode: evaluate the whole expression
-  if (state.expression != null) {
-    return onExpressionEval(state);
-  }
+  if (state.expression != null) return onExpressionEval(state);
 
   if (state.state === State.ERROR) return state;
   if (state.operator == null || state.operand1 == null) return state;
+
+  // Incomplete expression → Error
+  if (state.state !== State.ENTERING_SECOND) {
+    return { ...state, state: State.ERROR, display: 'Error' };
+  }
+
   const b = Number(state.display);
   try {
     const result = calculate(state.operator, state.operand1, b);
@@ -168,12 +174,11 @@ function onEquals(state) {
 }
 
 function onClear(state) {
-  return { ...createInitialState(), memory: state.memory, history: state.history };
+  return { ...createInitialState(), memory: state.memory, history: state.history, accent: state.accent };
 }
 
 function onSign(state) {
   if (state.expression != null) {
-    // Toggle leading minus
     const e = state.expression;
     const next = e.startsWith('-') ? e.slice(1) : '-' + e;
     return { ...state, expression: next, display: next };
@@ -187,7 +192,8 @@ function onSign(state) {
 
 function onPercent(state) {
   if (state.expression != null) {
-    return { ...state, expression: state.expression + '%', display: state.expression + '%' };
+    const next = state.expression + '%';
+    return { ...state, expression: next, display: next };
   }
 
   if (state.state === State.ERROR) return state;
@@ -285,23 +291,11 @@ function onVoiceExpression(state, payload) {
   };
 }
 
-/**
- * User started typing an expression — enter expression mode.
- * Payload: string (the current text) or undefined (start empty)
- */
 function onExpressionInput(state, payload) {
   const text = typeof payload === 'string' ? payload : state.display;
-  return {
-    ...state,
-    expression: text,
-    display: text,
-  };
+  return { ...state, expression: text, display: text };
 }
 
-/**
- * Evaluate the current expression string.
- * Clears expression mode and shows the result.
- */
 function onExpressionEval(state) {
   const expr = state.expression;
   if (expr == null || expr.trim() === '') {
@@ -324,11 +318,15 @@ function onExpressionEval(state) {
       history: [...state.history, { expression: expr, result, ts: Date.now() }],
     };
   } catch (err) {
-    return {
-      ...state,
-      state: State.ERROR,
-      display: 'Error',
-      expression: null,
-    };
+    return { ...state, state: State.ERROR, display: 'Error', expression: null };
   }
+}
+
+/**
+ * Set the accent color.
+ * Payload: 'orange' | 'green' | 'blue' | 'red' | 'purple' | 'pink'
+ */
+function onSetAccent(state, payload) {
+  if (!ACCENTS[payload]) return state;
+  return { ...state, accent: payload };
 }

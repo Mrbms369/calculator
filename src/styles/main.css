@@ -18,7 +18,17 @@
   --error:       #ff5252;
   --radius:      12px;
   --shadow:      0 10px 30px rgba(0,0,0,.45);
+
+  /* Accent (overridden by data-accent) */
+  --accent:      #ff9500;
+  --accent-hover:#ffad33;
 }
+
+[data-accent="green"]  { --accent: #2ecc71; --accent-hover: #3ee085; }
+[data-accent="blue"]   { --accent: #3b9bff; --accent-hover: #5cb0ff; }
+[data-accent="red"]    { --accent: #ff5252; --accent-hover: #ff7070; }
+[data-accent="purple"] { --accent: #a855f7; --accent-hover: #b975f9; }
+[data-accent="pink"]   { --accent: #ec4899; --accent-hover: #ef6eb1; }
 
 [data-theme="light"] {
   --bg:          #f2f4f8;
@@ -44,7 +54,7 @@ body {
   background: var(--bg);
   color: var(--text);
   font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  padding: 24px;
+  padding: 24px 24px 96px;
   transition: background .25s, color .25s;
 }
 
@@ -78,7 +88,6 @@ body {
   100% { color: #ff3b3b; text-shadow: 0 0 10px #ff3b3b, 0 0 22px #ff3b3b, 0 0 34px rgba(255,59,59,.6); }
 }
 
-/* ── Display ──────────────────────────────────────────── */
 .display {
   grid-column: 1 / -1;
   background: var(--display-bg);
@@ -94,13 +103,8 @@ body {
   transition: background .25s, box-shadow .15s;
 }
 
-.display:hover {
-  box-shadow: inset 0 0 0 1px rgba(255, 149, 0, .25);
-}
-
-.display:focus-within {
-  box-shadow: inset 0 0 0 2px var(--btn-op);
-}
+.display:hover { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 25%, transparent); }
+.display:focus-within { box-shadow: inset 0 0 0 2px var(--accent); }
 
 .history-preview {
   font-size: 13px;
@@ -121,14 +125,9 @@ body {
   min-width: 40px;
 }
 
-.current-value:empty::before {
-  content: '0';
-  color: var(--text-dim);
-}
-
+.current-value:empty::before { content: '0'; color: var(--text-dim); }
 .current-value.error { color: var(--error); }
 
-/* ── Keypad ───────────────────────────────────────────── */
 .keypad {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -154,8 +153,8 @@ body {
 .btn.num    { background: var(--btn-num); }
 .btn.num:hover { background: var(--btn-hover); }
 
-.btn.op     { background: var(--btn-op); color: #fff; font-weight: 600; }
-.btn.op:hover { background: var(--btn-op-hover); }
+.btn.op     { background: var(--accent); color: #fff; font-weight: 600; }
+.btn.op:hover { background: var(--accent-hover); }
 
 .btn.eq     { background: var(--btn-eq); color: #06231a; font-weight: 700; }
 .btn.eq:hover { background: var(--btn-eq-hover); }
@@ -173,11 +172,7 @@ body {
 .btn.sci:hover { background: var(--btn-sci-hover); color: var(--text); }
 
 .btn.span-2 { grid-column: span 2; }
-
-.btn.flash {
-  outline: 2px solid var(--btn-op);
-  outline-offset: 2px;
-}
+.btn.flash { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 /* ── History panel ────────────────────────────────────── */
 .history-panel {
@@ -210,7 +205,8 @@ body {
 .history-actions { display: flex; gap: 4px; }
 .history-actions.hidden { display: none; }
 
-.history-clear {
+.history-clear,
+.history-share {
   background: transparent;
   border: 1px solid var(--text-dim);
   color: var(--text-dim);
@@ -222,6 +218,12 @@ body {
   border-radius: 7px;
   cursor: pointer;
   transition: background .12s, color .12s, border-color .12s;
+}
+
+.history-share:hover {
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
+  color: var(--accent);
+  border-color: var(--accent);
 }
 
 .history-clear:hover {
@@ -239,12 +241,7 @@ body {
   font-size: 13px;
 }
 
-.history-day {
-  margin-bottom: 6px;
-  border-bottom: none !important;
-  padding: 0 !important;
-  display: block !important;
-}
+.history-day { margin-bottom: 6px; border-bottom: none !important; padding: 0 !important; display: block !important; }
 
 .history-day-label {
   font-size: 10px;
@@ -276,7 +273,7 @@ body {
 
 .history-item:hover,
 .history-item:focus-visible {
-  background: rgba(255, 149, 0, .12);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
   color: var(--text);
   outline: none;
 }
@@ -293,42 +290,12 @@ body {
   .btn.sci { font-size: 13px; }
 }
 
-/* ── Theme toggle ─────────────────────────────────────── */
-.theme-toggle {
-  position: fixed;
-  top: 16px;
-  right: 16px;
-  min-width: 68px;
-  padding: 8px 12px;
-  border-radius: 14px;
-  border: none;
-  background: var(--panel);
-  color: var(--text);
-  cursor: pointer;
-  box-shadow: var(--shadow);
-  transition: transform .15s, background .25s;
-  z-index: 100;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 2px;
-  line-height: 1;
-}
-
-.theme-toggle .icon  { font-size: 18px; }
-.theme-toggle .label {
-  font-size: 11px; font-weight: 600; letter-spacing: .5px;
-  text-transform: uppercase; color: var(--text-dim);
-}
-.theme-toggle:hover  { transform: scale(1.06); }
-.theme-toggle:active { transform: scale(0.94); }
-
-/* ── Voice input button ───────────────────────────────── */
+/* ── Fixed top-right buttons ──────────────────────────── */
+.theme-toggle,
+.accent-toggle,
 .mic-toggle {
   position: fixed;
   top: 16px;
-  right: 96px;
   min-width: 68px;
   padding: 8px 12px;
   border-radius: 14px;
@@ -347,12 +314,33 @@ body {
   line-height: 1;
 }
 
+.theme-toggle  { right: 16px; }
+.accent-toggle { right: 96px; }
+.mic-toggle    { right: 176px; }
+
+.theme-toggle .icon,
+.accent-toggle .swatch,
 .mic-toggle .icon  { font-size: 18px; }
+
+.accent-toggle .swatch {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 8px var(--accent);
+}
+
+.theme-toggle .label,
+.accent-toggle .label,
 .mic-toggle .label {
   font-size: 11px; font-weight: 600; letter-spacing: .5px;
   text-transform: uppercase; color: var(--text-dim);
 }
+.theme-toggle:hover,
+.accent-toggle:hover,
 .mic-toggle:hover  { transform: scale(1.06); }
+.theme-toggle:active,
+.accent-toggle:active,
 .mic-toggle:active { transform: scale(0.94); }
 
 .mic-toggle.listening {
@@ -367,16 +355,64 @@ body {
   50%      { box-shadow: 0 0 0 12px rgba(255, 82, 82, 0); }
 }
 
-@media (max-width: 620px) {
-  .mic-toggle { right: 96px; padding: 8px 10px; min-width: 60px; }
-  .theme-toggle { right: 16px; }
+/* ── Sound toggle (small circular, top-left) ─────────── */
+.sound-toggle {
+  position: fixed;
+  top: 16px;
+  left: 16px;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: none;
+  background: var(--panel);
+  color: var(--text);
+  cursor: pointer;
+  box-shadow: var(--shadow);
+  transition: transform .15s, background .25s;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  font-size: 18px;
 }
+.sound-toggle:hover  { transform: scale(1.06); }
+.sound-toggle:active { transform: scale(0.94); }
+
+/* ── Branding footer ──────────────────────────────────── */
+.branding-footer {
+  position: fixed;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: var(--panel);
+  box-shadow: var(--shadow);
+  font-size: 12px;
+  color: var(--text-dim);
+  z-index: 50;
+  user-select: none;
+}
+
+.branding-footer .flag {
+  display: inline-block;
+  width: 22px;
+  height: 15px;
+  border-radius: 2px;
+  overflow: hidden;
+  box-shadow: 0 0 0 1px rgba(255,255,255,.15);
+}
+.branding-footer .flag svg { display: block; width: 100%; height: 100%; }
+
+.branding-footer .label { letter-spacing: .3px; font-weight: 500; }
 
 /* ── Toast ────────────────────────────────────────────── */
 .toast-container {
   position: fixed;
   left: 50%;
-  bottom: 28px;
+  bottom: 72px;
   transform: translateX(-50%);
   display: flex;
   flex-direction: column;
@@ -403,3 +439,11 @@ body {
 .toast--success { background: #2ecc71; color: #06231a; }
 .toast--error   { background: #ff5252; color: #fff; }
 .toast--info    { background: #3b9bff; color: #fff; }
+
+/* Small screens: stacking of top buttons */
+@media (max-width: 620px) {
+  .mic-toggle    { right: 176px; padding: 8px 10px; min-width: 60px; }
+  .accent-toggle { right: 96px;  padding: 8px 10px; min-width: 60px; }
+  .theme-toggle  { right: 16px;  padding: 8px 10px; min-width: 60px; }
+  .branding-footer { font-size: 11px; }
+}

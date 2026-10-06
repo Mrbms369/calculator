@@ -1,11 +1,14 @@
 // src/main.js
-// Bootstrap: state, UI, keyboard, theme, voice, PWA, persistence.
+// Bootstrap: state, UI, keyboard, theme, voice, sound, share, PWA, persistence.
 
 import './styles/main.css';
-import { createInitialState, dispatch } from './state/machine.js';
+import { createInitialState, dispatch, ACCENTS } from './state/machine.js';
 import { mount, flashButton } from './ui/render.js';
 import { copyToClipboard } from './ui/toast.js';
 import { isVoiceSupported, listenOnce, parseSpokenExpression, speak } from './ui/voice.js';
+import { feedback, soundForEvent, setEnabled as setSoundEnabled, isEnabled as isSoundEnabled } from './ui/sound.js';
+import { shareResult } from './ui/share.js';
+import { mountBranding } from './ui/branding.js';
 
 // ─── Service worker (PWA) ──────────────────────────────────────────────
 if ('serviceWorker' in navigator) {
@@ -15,32 +18,39 @@ if ('serviceWorker' in navigator) {
 }
 
 // ─── Storage keys ──────────────────────────────────────────────────────
-const THEME_KEY         = 'bms-calculator:theme';
-const THEME_MANUAL_KEY  = 'bms-calculator:theme-manual';
-const HISTORY_KEY       = 'bms-calculator:history';
-const MAX_HISTORY       = 100;
+const THEME_KEY        = 'bms-calculator:theme';
+const THEME_MANUAL_KEY = 'bms-calculator:theme-manual';
+const HISTORY_KEY      = 'bms-calculator:history';
+const ACCENT_KEY       = 'bms-calculator:accent';
+const SOUND_KEY        = 'bms-calculator:sound';
+const MAX_HISTORY      = 100;
 
 // ─── Theme ─────────────────────────────────────────────────────────────
-function applyTheme(theme) {
-  document.documentElement.dataset.theme = theme;
-}
-
-function systemTheme() {
-  return window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
-}
-
+function applyTheme(theme) { document.documentElement.dataset.theme = theme; }
+function systemTheme() { return window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'; }
 function loadTheme() {
   const stored = localStorage.getItem(THEME_KEY);
   if (stored === 'light' || stored === 'dark') return stored;
   return systemTheme();
 }
-
-function isThemeManual() {
-  return localStorage.getItem(THEME_MANUAL_KEY) === 'true';
-}
+function isThemeManual() { return localStorage.getItem(THEME_MANUAL_KEY) === 'true'; }
 
 let currentTheme = loadTheme();
 applyTheme(currentTheme);
+
+// ─── Accent ────────────────────────────────────────────────────────────
+function loadAccent() {
+  const stored = localStorage.getItem(ACCENT_KEY);
+  return (stored && ACCENTS[stored]) ? stored : 'orange';
+}
+
+// ─── Sound ─────────────────────────────────────────────────────────────
+function loadSoundEnabled() {
+  const stored = localStorage.getItem(SOUND_KEY);
+  return stored === null ? true : stored === 'true';
+}
+
+setSoundEnabled(loadSoundEnabled());
 
 // ─── History persistence ───────────────────────────────────────────────
 function loadHistory() {
@@ -57,17 +67,21 @@ function loadHistory() {
 }
 
 function saveHistory(history) {
-  try {
-    localStorage.setItem(HISTORY_KEY, JSON.stringify(history.slice(-MAX_HISTORY)));
-  } catch {}
+  try { localStorage.setItem(HISTORY_KEY, JSON.stringify(history.slice(-MAX_HISTORY))); } catch {}
 }
 
 // ─── State ─────────────────────────────────────────────────────────────
-let state = createInitialState({ history: loadHistory() });
+let state = createInitialState({
+  history: loadHistory(),
+  accent: loadAccent(),
+});
 const root = document.getElementById('app');
 
 const ui = mount(root, state, handleEvent);
 ui.update(state);
+
+// ─── Branding footer ───────────────────────────────────────────────────
+mountBranding();
 
 // ─── Theme toggle ──────────────────────────────────────────────────────
 const themeToggle = document.createElement('button');
@@ -95,6 +109,39 @@ window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', ()
   applyTheme(currentTheme);
   themeToggle.querySelector('.icon').textContent = currentTheme === 'dark' ? '☀️' : '🌙';
 });
+
+// ─── Accent picker ─────────────────────────────────────────────────────
+const accentPicker = document.createElement('button');
+accentPicker.className = 'accent-toggle';
+accentPicker.type = 'button';
+accentPicker.setAttribute('aria-label', 'Choose accent color');
+accentPicker.title = 'Accent color';
+accentPicker.innerHTML = `
+  <span class="swatch"></span>
+  <span class="label">Color</span>
+`;
+accentPicker.addEventListener('click', () => {
+  const list = Object.keys(ACCENTS);
+  const idx = list.indexOf(state.accent);
+  const next = list[(idx + 1) % list.length];
+  handleEvent({ type: 'SET_ACCENT', payload: next });
+});
+document.body.appendChild(accentPicker);
+
+// ─── Sound toggle ──────────────────────────────────────────────────────
+const soundToggle = document.createElement('button');
+soundToggle.className = 'sound-toggle';
+soundToggle.type = 'button';
+soundToggle.setAttribute('aria-label', 'Toggle sound');
+soundToggle.title = 'Sound on/off';
+soundToggle.innerHTML = `<span class="icon">${isSoundEnabled() ? '🔊' : '🔇'}</span>`;
+soundToggle.addEventListener('click', () => {
+  const next = !isSoundEnabled();
+  setSoundEnabled(next);
+  localStorage.setItem(SOUND_KEY, String(next));
+  soundToggle.querySelector('.icon').textContent = next ? '🔊' : '🔇';
+});
+document.body.appendChild(soundToggle);
 
 // ─── Voice input ───────────────────────────────────────────────────────
 if (isVoiceSupported()) {
@@ -132,15 +179,62 @@ if (isVoiceSupported()) {
   document.body.appendChild(micBtn);
 }
 
-// ─── Central event handler ─────────────────────────────────────────────
-function handleEvent(event) {
-  const prevHistory = state.history;
-  state = dispatch(state, event);
-  ui.update(state);
-  if (state.history !== prevHistory) saveHistory(state.history);
+// ─── Share handler ─────────────────────────────────────────────────────
+async function handleShare() {
+  // Find the most recent calculation to share
+  const last = state.history[state.history.length - 1];
+  if (!last) {
+    copyToClipboard('Nothing to share yet');
+    return;
+  }
+  try {
+    const outcome = await shareResult({
+      expression: last.expression,
+      result: last.result,
+      theme: currentTheme,
+    });
+    if (outcome === 'downloaded') {
+      copyToClipboard('Image downloaded');
+    }
+  } catch (err) {
+    console.warn('Share failed:', err);
+    copyToClipboard('Share failed');
+  }
 }
 
-// ─── Keyboard support (only when NOT typing in the display) ────────────
+// ─── Central event handler ─────────────────────────────────────────────
+function handleEvent(event) {
+  // Special event used by the Share button (not a state machine event)
+  if (event.type === '__SHARE__') {
+    handleShare();
+    return;
+  }
+
+  // Sound + haptic feedback for real dispatches
+  const kind = soundForEvent(event);
+  feedback(kind);
+
+  const prevHistory = state.history;
+  const prevAccent = state.accent;
+  state = dispatch(state, event);
+  ui.update(state);
+
+  if (state.history !== prevHistory) saveHistory(state.history);
+  if (state.accent !== prevAccent) {
+    localStorage.setItem(ACCENT_KEY, state.accent);
+    // Update the accent swatch color on the picker
+    const swatch = accentPicker.querySelector('.swatch');
+    swatch.style.background = ACCENTS[state.accent] || ACCENTS.orange;
+  }
+}
+
+// Initialize swatch color
+{
+  const swatch = accentPicker.querySelector('.swatch');
+  swatch.style.background = ACCENTS[state.accent] || ACCENTS.orange;
+}
+
+// ─── Keyboard support ──────────────────────────────────────────────────
 const KEY_MAP = {
   '0': { type: 'DIGIT', payload: '0' }, '1': { type: 'DIGIT', payload: '1' },
   '2': { type: 'DIGIT', payload: '2' }, '3': { type: 'DIGIT', payload: '3' },
@@ -178,17 +272,12 @@ function labelFor(event) {
 
 document.addEventListener('keydown', (e) => {
   if (e.ctrlKey || e.metaKey || e.altKey) return;
-
-  // If the user is typing in the expression display, let the browser handle it
   const target = e.target;
   if (target && target.isContentEditable) return;
-
   const event = KEY_MAP[e.key];
   if (!event) return;
-
   e.preventDefault();
   handleEvent(event);
-
   const label = labelFor(event);
   if (label) flashButton(root, label);
 });

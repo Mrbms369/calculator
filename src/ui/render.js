@@ -39,16 +39,12 @@ const BUTTONS = [
 ];
 
 function startOfDay(ts) {
-  const d = new Date(ts);
-  d.setHours(0, 0, 0, 0);
-  return d.getTime();
+  const d = new Date(ts); d.setHours(0, 0, 0, 0); return d.getTime();
 }
 
 function formatTime(ts) {
   const d = new Date(ts);
-  const hh = String(d.getHours()).padStart(2, '0');
-  const mm = String(d.getMinutes()).padStart(2, '0');
-  return `${hh}:${mm}`;
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
 
 function formatDayHeader(dayTs) {
@@ -89,7 +85,7 @@ function escapeHtml(s) {
 
 export function mount(root, initialState, onEvent) {
   root.innerHTML = `
-    <div class="calculator">
+    <div class="calculator" data-accent="orange">
       <h1 class="app-title">BMs Calculator</h1>
       <div class="display" role="status" aria-live="polite" tabindex="0" title="Click or press any key to type an expression">
         <div class="history-preview" aria-hidden="true"></div>
@@ -100,8 +96,9 @@ export function mount(root, initialState, onEvent) {
         <header class="history-header">
           <h3>History</h3>
           <div class="history-actions">
-            <button type="button" class="history-clear" data-scope="today">Today</button>
-            <button type="button" class="history-clear" data-scope="all">All</button>
+            <button type="button" class="history-share" title="Share this calculation">Share</button>
+            <button type="button" class="history-clear" data-scope="today" title="Clear today's history">Today</button>
+            <button type="button" class="history-clear" data-scope="all"   title="Clear all history">All</button>
           </div>
         </header>
         <ul class="history-list"></ul>
@@ -109,12 +106,14 @@ export function mount(root, initialState, onEvent) {
     </div>
   `;
 
-  const keypad          = root.querySelector('.keypad');
-  const displayValue    = root.querySelector('.current-value');
-  const historyPreview  = root.querySelector('.history-preview');
-  const historyList     = root.querySelector('.history-list');
-  const historyActions  = root.querySelector('.history-actions');
-  const displayEl       = root.querySelector('.display');
+  const calcEl         = root.querySelector('.calculator');
+  const keypad         = root.querySelector('.keypad');
+  const displayValue   = root.querySelector('.current-value');
+  const historyPreview = root.querySelector('.history-preview');
+  const historyList    = root.querySelector('.history-list');
+  const historyActions = root.querySelector('.history-actions');
+  const shareBtn       = root.querySelector('.history-share');
+  const displayEl      = root.querySelector('.display');
 
   for (const btn of BUTTONS) {
     const el = document.createElement('button');
@@ -139,7 +138,11 @@ export function mount(root, initialState, onEvent) {
     onEvent({ type: 'RECALL_HISTORY', payload: li.dataset.result });
   });
 
-  // ─── Expression mode wiring ─────────────────────────────────────────
+  shareBtn.addEventListener('click', () => {
+    // The main.js file listens for this event via a callback
+    onEvent({ type: '__SHARE__' });
+  });
+
   let isExpressionMode = false;
   let suppressInputEvent = false;
 
@@ -169,18 +172,11 @@ export function mount(root, initialState, onEvent) {
     }
   });
 
-  displayValue.addEventListener('blur', () => {
-    isExpressionMode = false;
-  });
-
-  displayEl.addEventListener('click', () => {
-    displayValue.focus();
-  });
+  displayValue.addEventListener('blur', () => { isExpressionMode = false; });
+  displayEl.addEventListener('click', () => { displayValue.focus(); });
 
   return {
     update(state) {
-      // Only update the display text if NOT in expression mode,
-      // otherwise we'd overwrite what the user is typing.
       if (!isExpressionMode) {
         const text = state.display;
         if (displayValue.textContent !== text) {
@@ -188,6 +184,12 @@ export function mount(root, initialState, onEvent) {
           displayValue.textContent = text;
           suppressInputEvent = false;
         }
+      }
+
+      // Accent
+      const accent = state.accent || 'orange';
+      if (calcEl.dataset.accent !== accent) {
+        calcEl.dataset.accent = accent;
       }
 
       if ((state.state === 'OPERATOR_PENDING' || state.state === 'ENTERING_SECOND')
