@@ -2,7 +2,7 @@
 // Finite state machine for the calculator's behavior.
 
 import { calculate, unary } from '../engine/calculator.js';
-import { evaluate as evaluateExpression } from '../engine/expression.js';
+import { evaluate as evaluateExpression, hasVariable } from '../engine/expression.js';
 
 export const CONSTANTS = Object.freeze({
   'π': Math.PI,
@@ -69,18 +69,14 @@ export function dispatch(state, event) {
   }
 }
 
-// ─── Event handlers ───────────────────────────────────────────────────────
-
 function onDigit(state, digit) {
   if (state.expression != null) {
     const next = state.expression === '0' ? digit : state.expression + digit;
     return { ...state, expression: next, display: next };
   }
-
   if (state.state === State.RESULT || state.state === State.ERROR) {
     return {
-      ...state,
-      state: State.ENTERING_FIRST,
+      ...state, state: State.ENTERING_FIRST,
       display: digit === '0' ? '0' : digit,
       operand1: null, operand2: null, operator: null,
     };
@@ -103,7 +99,6 @@ function onDot(state) {
     const next = (state.expression || '0') + '.';
     return { ...state, expression: next, display: next };
   }
-
   if (state.display.includes('.')) return state;
   if (state.state === State.RESULT || state.state === State.ERROR) {
     return {
@@ -125,7 +120,6 @@ function onOperator(state, op) {
       display: state.expression + ' ' + op + ' ',
     };
   }
-
   if (state.state === State.ERROR) return state;
   if (state.state === State.ENTERING_SECOND && state.operator != null && state.operand1 != null) {
     const b = Number(state.display);
@@ -183,7 +177,6 @@ function onSign(state) {
     const next = e.startsWith('-') ? e.slice(1) : '-' + e;
     return { ...state, expression: next, display: next };
   }
-
   if (state.state === State.ERROR) return state;
   if (state.display === '0') return state;
   const toggled = state.display.startsWith('-') ? state.display.slice(1) : '-' + state.display;
@@ -195,7 +188,6 @@ function onPercent(state) {
     const next = state.expression + '%';
     return { ...state, expression: next, display: next };
   }
-
   if (state.state === State.ERROR) return state;
   try {
     const result = unary('%', Number(state.display));
@@ -211,7 +203,6 @@ function onBackspace(state) {
     const next = e.length <= 1 ? '0' : e.slice(0, -1);
     return { ...state, expression: next === '0' ? '0' : next, display: next };
   }
-
   if (state.state === State.RESULT || state.state === State.ERROR) return state;
   const current = state.display;
   if (current.length <= 1 || (current.length === 2 && current.startsWith('-'))) {
@@ -235,7 +226,6 @@ function onUnary(state, op) {
     const next = state.expression + op;
     return { ...state, expression: next, display: next };
   }
-
   if (state.state === State.ERROR) return state;
   const n = Number(state.display);
   if (!Number.isFinite(n)) return { ...state, state: State.ERROR, display: 'Error' };
@@ -254,12 +244,10 @@ function onUnary(state, op) {
 function onConstant(state, symbol) {
   const value = CONSTANTS[symbol];
   if (value == null) return state;
-
   if (state.expression != null) {
     const next = state.expression + symbol;
     return { ...state, expression: next, display: next };
   }
-
   return {
     ...state, state: State.RESULT, display: String(value),
     operand1: value, operand2: null, operator: null,
@@ -303,7 +291,9 @@ function onExpressionEval(state) {
   }
 
   try {
-    const result = evaluateExpression(expr);
+    // Pass memory value as x — this is the TI-style convention
+    const ctx = { x: state.memory };
+    const result = evaluateExpression(expr, ctx);
     if (!Number.isFinite(result)) {
       return { ...state, state: State.ERROR, display: 'Error', expression: null };
     }
@@ -318,14 +308,15 @@ function onExpressionEval(state) {
       history: [...state.history, { expression: expr, result, ts: Date.now() }],
     };
   } catch (err) {
-    return { ...state, state: State.ERROR, display: 'Error', expression: null };
+    return {
+      ...state,
+      state: State.ERROR,
+      display: 'Error',
+      expression: null,
+    };
   }
 }
 
-/**
- * Set the accent color.
- * Payload: 'orange' | 'green' | 'blue' | 'red' | 'purple' | 'pink'
- */
 function onSetAccent(state, payload) {
   if (!ACCENTS[payload]) return state;
   return { ...state, accent: payload };

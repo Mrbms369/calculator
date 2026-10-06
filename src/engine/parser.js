@@ -1,36 +1,23 @@
 // src/engine/parser.js
-// Parses a token stream into an Abstract Syntax Tree (AST).
-// Grammar (highest precedence binds tightest):
+// Parses a token stream into an AST.
 //
-//   expression := term (('+' | '-') term)*
-//   term       := factor (('*' | '/') factor)*
-//   factor     := ('-' | '+') factor | postfix
-//   postfix    := primary '%'?                        (postfix percent)
-//   primary    := NUMBER | CONST | '(' expression ')' | UNARY primary
-//
+// Grammar:
+//   expression     := additive
+//   additive       := multiplicative (('+' | '-') multiplicative)*
+//   multiplicative := unary (('*' | '/') unary)*
+//   unary          := ('-' | '+' | '√') unary | power
+//   power          := postfix ('^' unary)?
+//   postfix        := primary '%'?
+//   primary        := NUMBER | VAR | CONST | FUNC '(' args ')' | '(' expression ')'
 
 import { TokenType } from './tokenizer.js';
 
-/**
- * @typedef {Object} Node
- * @property {string} type   'Number' | 'Binary' | 'Unary' | 'Postfix' | 'Group'
- * @property {any}    [value]
- * @property {Node}   [left]
- * @property {Node}   [right]
- * @property {Node}   [argument]
- * @property {string} [op]
- */
-
-/**
- * Parse tokens into an AST.
- * @param {Array<{type: string, value: any}>} tokens
- * @returns {Node}
- */
 export function parse(tokens) {
   let pos = 0;
 
-  function peek() { return tokens[pos]; }
-  function next() { return tokens[pos++]; }
+  const peek = () => tokens[pos];
+  const next = () => tokens[pos++];
+
   function expect(type, value) {
     const t = peek();
     if (t.type !== type || (value !== undefined && t.value !== value)) {
@@ -40,38 +27,55 @@ export function parse(tokens) {
   }
 
   function parseExpression() {
-    let left = parseTerm();
+    return parseAdditive();
+  }
+
+  function parseAdditive() {
+    let left = parseMultiplicative();
     while (peek().type === TokenType.OP && (peek().value === '+' || peek().value === '-')) {
       const op = next().value;
-      const right = parseTerm();
+      const right = parseMultiplicative();
       left = { type: 'Binary', op, left, right };
     }
     return left;
   }
 
-  function parseTerm() {
-    let left = parseFactor();
+  function parseMultiplicative() {
+    let left = parseUnary();
     while (peek().type === TokenType.OP && (peek().value === '*' || peek().value === '/')) {
       const op = next().value;
-      const right = parseFactor();
+      const right = parseUnary();
       left = { type: 'Binary', op, left, right };
     }
     return left;
   }
 
-  function parseFactor() {
-    // Unary plus/minus
+  function parseUnary() {
     if (peek().type === TokenType.OP && (peek().value === '+' || peek().value === '-')) {
       const op = next().value;
-      const argument = parseFactor();
-      return { type: 'Unary', op, argument };
+      const arg = parseUnary();
+      return { type: 'Unary', op, argument: arg };
     }
-    return parsePostfix();
+    if (peek().type === TokenType.UNARY && peek().value === '√') {
+      next();
+      const arg = parseUnary();
+      return { type: 'Unary', op: '√', argument: arg };
+    }
+    return parsePower();
+  }
+
+  function parsePower() {
+    const left = parsePostfix();
+    if (peek().type === TokenType.OP && peek().value === '^') {
+      next();
+      const right = parseUnary();  // right-assoc, allows 2^-3
+      return { type: 'Binary', op: '^', left, right };
+    }
+    return left;
   }
 
   function parsePostfix() {
     const node = parsePrimary();
-    // Allow only one postfix % (e.g. 50%) — chainable is uncommon
     if (peek().type === TokenType.PERCENT) {
       next();
       return { type: 'Postfix', op: '%', argument: node };
@@ -82,20 +86,26 @@ export function parse(tokens) {
   function parsePrimary() {
     const t = peek();
 
-    if (t.type === TokenType.NUMBER) {
-      next();
-      return { type: 'Number', value: t.value };
-    }
+    if (t.type === TokenType.NUMBER) { next(); return { type: 'Number', value: t.value }; }
 
-    if (t.type === TokenType.CONST) {
-      next();
-      return { type: 'Number', value: t.value };
-    }
+    // CONST now carries the numeric value directly (see tokenizer)
+    if (t.type === TokenType.CONST) { next(); return { type: 'Number', value: t.value }; }
 
-    if (t.type === TokenType.UNARY) {           // √
-      const op = next().value;
-      const argument = parsePrimary();
-      return { type: 'Unary', op, argument };
+    if (t.type === TokenType.VAR) { next(); return { type: 'Variable', name: t.value }; }
+
+    if (t.type === TokenType.FUNC) {
+      next();
+      expect(TokenType.LPAREN);
+      const args = [];
+      if (peek().type !== TokenType.RPAREN) {
+        args.push(parseExpression());
+        while (peek().type === TokenType.COMMA) {
+          next();
+          args.push(parseExpression());
+        }
+      }
+      expect(TokenType.RPAREN);
+      return { type: 'Function', name: t.value, args };
     }
 
     if (t.type === TokenType.LPAREN) {

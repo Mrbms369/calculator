@@ -1,39 +1,61 @@
 // src/engine/tokenizer.js
 // Converts an expression string into a flat array of tokens.
-// A token is { type, value } — e.g. { type: 'NUMBER', value: 42 }
-//                                       { type: 'OP', value: '+' }
+// Supports: numbers, + - * / % ^, ( ), x, functions, constants, unicode symbols.
 
 export const TokenType = Object.freeze({
   NUMBER:  'NUMBER',
-  OP:      'OP',       // + - * / × ÷
-  LPAREN:  'LPAREN',   // (
-  RPAREN:  'RPAREN',   // )
-  UNARY:   'UNARY',    // √ (applies to next primary)
-  PERCENT: 'PERCENT',  // postfix % (e.g. 50%)
-  CONST:   'CONST',    // π, e
-  EOF:     'EOF',      // end of input marker
+  OP:      'OP',
+  LPAREN:  'LPAREN',
+  RPAREN:  'RPAREN',
+  UNARY:   'UNARY',
+  PERCENT: 'PERCENT',
+  CONST:   'CONST',
+  VAR:     'VAR',
+  FUNC:    'FUNC',
+  COMMA:   'COMMA',
+  EOF:     'EOF',
 });
 
-const OPERATOR_MAP = {
-  '+': '+',
-  '-': '-',
-  '*': '*',
-  '×': '*',
-  '/': '/',
-  '÷': '/',
+// Operator normalization
+const OP_MAP = {
+  '+': '+', '-': '-', '−': '-', '–': '-', '—': '-',
+  '*': '*', '×': '*', '·': '*',
+  '/': '/', '÷': '/',
+  '^': '^',
 };
 
-const CONSTANT_MAP = {
-  'π': Math.PI,
-  'pi': Math.PI,
-  'e': Math.E,
+// Constants — name → numeric value
+const CONSTANTS = {
+  'π':   Math.PI,
+  'pi':  Math.PI,
+  'PI':  Math.PI,
+  'e':   Math.E,
+  'E':   Math.E,
+  'tau': 2 * Math.PI,
+  'phi': 1.618033988749895,
 };
+
+// Function names
+const FUNCTIONS = new Set([
+  'sin', 'cos', 'tan', 'cot', 'sec', 'csc',
+  'asin', 'acos', 'atan',
+  'arcsin', 'arccos', 'arctan',
+  'sinh', 'cosh', 'tanh',
+  'asinh', 'acosh', 'atanh',
+  'sqrt', 'cbrt', 'abs', 'exp', 'pow', 'mod',
+  'log', 'ln', 'log2', 'log10',
+  'floor', 'ceil', 'round', 'trunc', 'sign',
+  'min', 'max',
+]);
+
+// Longest-first arrays for reliable matching
+const ALL_FUNCS = [...FUNCTIONS].sort((a, b) => b.length - a.length);
+const ALL_CONSTS = Object.keys(CONSTANTS).sort((a, b) => b.length - a.length);
 
 /**
  * Tokenize an expression string.
  * @param {string} input
  * @returns {Array<{type: string, value: any}>}
- * @throws {Error} on invalid characters
  */
 export function tokenize(input) {
   if (typeof input !== 'string') throw new Error('Input must be a string');
@@ -46,36 +68,84 @@ export function tokenize(input) {
   while (i < s.length) {
     const ch = s[i];
 
-    // Whitespace → skip
+    // Whitespace
     if (/\s/.test(ch)) { i++; continue; }
 
-    // Numbers (integer or decimal)
+    // Number (integer or decimal)
     if (/[0-9]/.test(ch) || (ch === '.' && /[0-9]/.test(s[i + 1] || ''))) {
-      let start = i;
-      while (i < s.length && /[0-9.]/.test(s[i])) i++;
-      const raw = s.slice(start, i);
-      // Guard against multiple dots like "1.2.3"
+      let j = i;
+      while (j < s.length && /[0-9.]/.test(s[j])) j++;
+      const raw = s.slice(i, j);
       if ((raw.match(/\./g) || []).length > 1) {
         throw new Error(`Invalid number: ${raw}`);
       }
       tokens.push({ type: TokenType.NUMBER, value: Number(raw) });
+      i = j;
       continue;
+    }
+
+    // Identifier: constant, function, or variable x
+    if (/[A-Za-zπ_]/.test(ch)) {
+      const remaining = s.slice(i);
+      let matched = false;
+
+      // Constants first (longest match wins)
+      for (const name of ALL_CONSTS) {
+        if (remaining.startsWith(name)) {
+          tokens.push({
+            type: TokenType.CONST,
+            value: CONSTANTS[name],  // ← numeric value (Math.PI etc.)
+            name,                     // ← original name (for display/debugging)
+          });
+          i += name.length;
+          matched = true;
+          break;
+        }
+      }
+      if (matched) continue;
+
+      // Functions (longest match, must not be followed by another identifier char)
+      for (const name of ALL_FUNCS) {
+        if (remaining.startsWith(name)) {
+          const after = remaining[name.length];
+          if (after === undefined || !/[A-Za-z0-9_]/.test(after)) {
+            tokens.push({ type: TokenType.FUNC, value: name });
+            i += name.length;
+            matched = true;
+            break;
+          }
+        }
+      }
+      if (matched) continue;
+
+      // Standalone variable x
+      if (ch === 'x' && (i + 1 === s.length || !/[A-Za-z0-9_]/.test(s[i + 1]))) {
+        tokens.push({ type: TokenType.VAR, value: 'x' });
+        i++;
+        continue;
+      }
+
+      // Compound like "xsin" — split into "x" + "sin"
+      if (ch === 'x') {
+        const rest = s.slice(i + 1);
+        for (const name of ALL_FUNCS) {
+          if (rest.startsWith(name) && (rest[name.length] === undefined || !/[A-Za-z0-9_]/.test(rest[name.length]))) {
+            tokens.push({ type: TokenType.VAR, value: 'x' });
+            i++;
+            matched = true;
+            break;
+          }
+        }
+        if (matched) continue;
+      }
+
+      const bad = remaining.match(/^[A-Za-z_]+/)?.[0] || ch;
+      throw new Error(`Unknown name: "${bad}"`);
     }
 
     // Operators
-    if (OPERATOR_MAP[ch] !== undefined) {
-      tokens.push({ type: TokenType.OP, value: OPERATOR_MAP[ch] });
-      i++;
-      continue;
-    }
-
-    // Parentheses
-    if (ch === '(') { tokens.push({ type: TokenType.LPAREN, value: '(' }); i++; continue; }
-    if (ch === ')') { tokens.push({ type: TokenType.RPAREN, value: ')' }); i++; continue; }
-
-    // Square root symbol (unary prefix)
-    if (ch === '√') {
-      tokens.push({ type: TokenType.UNARY, value: '√' });
+    if (OP_MAP[ch] !== undefined) {
+      tokens.push({ type: TokenType.OP, value: OP_MAP[ch] });
       i++;
       continue;
     }
@@ -87,20 +157,13 @@ export function tokenize(input) {
       continue;
     }
 
-    // Constants
-    // Single-char 'e' — but careful: 'e' can also be part of scientific notation,
-    // which we don't support here. So just check single char.
-    if (ch === 'π') { tokens.push({ type: TokenType.CONST, value: Math.PI }); i++; continue; }
-    if (ch === 'e' || ch === 'E') {
-      // Only treat as Euler's number if it's standalone (not adjacent to digits)
-      const prev = i > 0 ? s[i - 1] : '';
-      const next = s[i + 1] ?? '';
-      if (!/[0-9]/.test(prev) && !/[0-9]/.test(next)) {
-        tokens.push({ type: TokenType.CONST, value: Math.E });
-        i++;
-        continue;
-      }
-    }
+    // Parens, comma
+    if (ch === '(') { tokens.push({ type: TokenType.LPAREN }); i++; continue; }
+    if (ch === ')') { tokens.push({ type: TokenType.RPAREN }); i++; continue; }
+    if (ch === ',') { tokens.push({ type: TokenType.COMMA }); i++; continue; }
+
+    // √ unary prefix
+    if (ch === '√') { tokens.push({ type: TokenType.UNARY, value: '√' }); i++; continue; }
 
     throw new Error(`Unexpected character: "${ch}"`);
   }
