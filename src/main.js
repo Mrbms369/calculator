@@ -1,5 +1,5 @@
 // src/main.js
-// Bootstrap: tabs, state, UI, keyboard, theme, voice, sound, share, steps.
+// Bootstrap: tabs, state, UI, keyboard, theme, voice, sound, share, steps, graph.
 
 import './styles/main.css';
 import './ui/panels.css';
@@ -14,6 +14,7 @@ import { mountBranding } from './ui/branding.js';
 import { mountAccentPicker } from './ui/accentPicker.js';
 import { mountTabs } from './ui/tabs.js';
 import { mountSteps } from './ui/steps.js';
+import { mountGraph } from './ui/graph.js';
 
 // ─── Service worker ────────────────────────────────────────────────────
 if ('serviceWorker' in navigator) {
@@ -84,14 +85,24 @@ let state = createInitialState({
   accent: loadAccent(),
 });
 
-// The UI mounts into the calculator panel (which tabs.js already holds)
+// ─── Mount calculator UI ───────────────────────────────────────────────
 const ui = mount(appRoot, state, handleEvent);
 ui.update(state);
+
+// ─── Mount Graph panel ─────────────────────────────────────────────────
+const graphEl = document.createElement('div');
+tabs.registerPanel('graph', graphEl);
+const graph = mountGraph(graphEl);
+
+// Notify graph on tab focus
+tabs.onChange((tabId) => {
+  if (tabId === 'graph') graph.refresh();
+});
 
 // ─── Branding footer ───────────────────────────────────────────────────
 mountBranding();
 
-// ─── Steps panel (slides up when a new calc completes) ─────────────────
+// ─── Steps panel ───────────────────────────────────────────────────────
 const stepsContainer = document.createElement('div');
 document.body.appendChild(stepsContainer);
 const steps = mountSteps(stepsContainer);
@@ -101,7 +112,7 @@ const themeToggle = document.createElement('button');
 themeToggle.className = 'theme-toggle';
 themeToggle.type = 'button';
 themeToggle.setAttribute('aria-label', 'Toggle theme');
-themeToggle.title = 'Toggle theme (auto until first manual choice)';
+themeToggle.title = 'Toggle theme';
 themeToggle.innerHTML = `
   <span class="icon">${currentTheme === 'dark' ? '☀️' : '🌙'}</span>
   <span class="label">Mode</span>
@@ -112,6 +123,7 @@ themeToggle.addEventListener('click', () => {
   localStorage.setItem(THEME_KEY, currentTheme);
   localStorage.setItem(THEME_MANUAL_KEY, 'true');
   themeToggle.querySelector('.icon').textContent = currentTheme === 'dark' ? '☀️' : '🌙';
+  graph.refresh();
 });
 document.body.appendChild(themeToggle);
 
@@ -120,6 +132,7 @@ window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', ()
   currentTheme = systemTheme();
   applyTheme(currentTheme);
   themeToggle.querySelector('.icon').textContent = currentTheme === 'dark' ? '☀️' : '🌙';
+  graph.refresh();
 });
 
 // ─── Accent picker ─────────────────────────────────────────────────────
@@ -143,7 +156,7 @@ soundToggle.addEventListener('click', () => {
 });
 document.body.appendChild(soundToggle);
 
-// ─── Voice input ───────────────────────────────────────────────────────
+// ─── Voice ─────────────────────────────────────────────────────────────
 if (isVoiceSupported()) {
   const micBtn = document.createElement('button');
   micBtn.className = 'mic-toggle';
@@ -201,8 +214,6 @@ function handleEvent(event) {
 
   if (state.history !== prevHistory) {
     saveHistory(state.history);
-
-    // Auto-show steps for the newest calculation
     const last = state.history[state.history.length - 1];
     if (last && state.history.length > prevHistory.length) {
       steps.show(last.expression);
@@ -211,6 +222,7 @@ function handleEvent(event) {
   if (state.accent !== prevAccent) {
     localStorage.setItem(ACCENT_KEY, state.accent);
     accentPicker.setActive(state.accent);
+    graph.refresh();
   }
 }
 
@@ -254,6 +266,7 @@ document.addEventListener('keydown', (e) => {
   if (e.ctrlKey || e.metaKey || e.altKey) return;
   const target = e.target;
   if (target && target.isContentEditable) return;
+  if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) return;
   const event = KEY_MAP[e.key];
   if (!event) return;
   e.preventDefault();
