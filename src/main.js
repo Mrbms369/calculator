@@ -1,5 +1,5 @@
 // src/main.js
-// Bootstrap: tabs, state, UI, keyboard, theme, voice, sound, share, steps, graph, units, formulas, programmer.
+// Bootstrap: tabs, state, UI, keyboard, theme, voice, sound, share, steps, graph, units, formulas, programmer, language.
 
 import './styles/main.css';
 import './ui/panels.css';
@@ -18,11 +18,9 @@ import { mountGraph } from './ui/graph.js';
 import { mountUnits } from './ui/units.js';
 import { mountFormulas } from './ui/formulas.js';
 import { mountProgrammer } from './ui/programmer.js';
+import { mountLanguageToggle, loadLanguage, saveLanguage } from './ui/languageToggle.js';
 
 // ─── Service worker (production only) ──────────────────────────────────
-// Registering the SW during development causes aggressive caching that
-// hides code changes even with Ctrl+Shift+R. We only enable it for the
-// production build.
 if ('serviceWorker' in navigator && import.meta.env.PROD) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/sw.js').catch((err) => console.warn('SW:', err));
@@ -63,6 +61,9 @@ function loadSoundEnabled() {
 }
 setSoundEnabled(loadSoundEnabled());
 
+// ─── Voice language ────────────────────────────────────────────────────
+let currentVoiceLanguage = loadLanguage();
+
 // ─── History ───────────────────────────────────────────────────────────
 function loadHistory() {
   try {
@@ -95,27 +96,23 @@ let state = createInitialState({
 const ui = mount(appRoot, state, handleEvent);
 ui.update(state);
 
-// ─── Mount Graph panel ─────────────────────────────────────────────────
+// ─── Mount Graph / Units / Formulas / Programmer panels ────────────────
 const graphEl = document.createElement('div');
 tabs.registerPanel('graph', graphEl);
 const graph = mountGraph(graphEl);
 
-// ─── Mount Units panel ─────────────────────────────────────────────────
 const unitsEl = document.createElement('div');
 tabs.registerPanel('units', unitsEl);
 const units = mountUnits(unitsEl);
 
-// ─── Mount Formulas panel ──────────────────────────────────────────────
 const formulasEl = document.createElement('div');
 tabs.registerPanel('formulas', formulasEl);
 const formulas = mountFormulas(formulasEl);
 
-// ─── Mount Programmer panel ────────────────────────────────────────────
 const progEl = document.createElement('div');
 tabs.registerPanel('programmer', progEl);
 const programmer = mountProgrammer(progEl);
 
-// Notify panels on tab focus
 tabs.onChange((tabId) => {
   if (tabId === 'graph') graph.refresh?.();
   if (tabId === 'units') units.focus?.();
@@ -162,6 +159,17 @@ const accentPicker = mountAccentPicker(
   (key) => handleEvent({ type: 'SET_ACCENT', payload: key }),
 );
 
+// ─── Language toggle ───────────────────────────────────────────────────
+const languageToggle = mountLanguageToggle(
+  document.body,
+  () => currentVoiceLanguage,
+  (key) => {
+    currentVoiceLanguage = key;
+    saveLanguage(key);
+    languageToggle.setActive(key);
+  },
+);
+
 // ─── Sound toggle ──────────────────────────────────────────────────────
 const soundToggle = document.createElement('button');
 soundToggle.className = 'sound-toggle';
@@ -176,28 +184,41 @@ soundToggle.addEventListener('click', () => {
 });
 document.body.appendChild(soundToggle);
 
-// ─── Voice ─────────────────────────────────────────────────────────────
+// ─── Voice (bilingual) ─────────────────────────────────────────────────
 if (isVoiceSupported()) {
   const micBtn = document.createElement('button');
   micBtn.className = 'mic-toggle';
   micBtn.type = 'button';
   micBtn.setAttribute('aria-label', 'Voice input');
   micBtn.innerHTML = `<span class="icon">🎤</span><span class="label">Voice</span>`;
+
   micBtn.addEventListener('click', async () => {
     if (micBtn.classList.contains('listening')) return;
     micBtn.classList.add('listening');
     try {
-      const transcript = await listenOnce();
+      const transcript = await listenOnce({ langKey: currentVoiceLanguage });
       if (transcript) {
-        const parsed = parseSpokenExpression(transcript);
+        const parsed = parseSpokenExpression(transcript, currentVoiceLanguage);
         if (parsed) {
-          handleEvent({ type: 'VOICE_EXPRESSION', payload: parsed });
-          speak(`${parsed.expression} equals ${parsed.result}`);
-        } else speak('Sorry, I did not understand');
+          handleEvent({
+            type: 'VOICE_EXPRESSION',
+            payload: { expression: parsed.expression, result: parsed.result },
+          });
+          speak(parsed.speakText, { langKey: currentVoiceLanguage });
+        } else {
+          const failMsg = currentVoiceLanguage === 'sw'
+            ? 'Samahani, sikuelewa'
+            : 'Sorry, I did not understand';
+          speak(failMsg, { langKey: currentVoiceLanguage });
+        }
       }
-    } catch (err) { console.warn('Voice error:', err); }
-    finally { micBtn.classList.remove('listening'); }
+    } catch (err) {
+      console.warn('Voice error:', err);
+    } finally {
+      micBtn.classList.remove('listening');
+    }
   });
+
   document.body.appendChild(micBtn);
 }
 
