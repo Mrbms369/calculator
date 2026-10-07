@@ -19,8 +19,11 @@ import { mountUnits } from './ui/units.js';
 import { mountFormulas } from './ui/formulas.js';
 import { mountProgrammer } from './ui/programmer.js';
 
-// ─── Service worker ────────────────────────────────────────────────────
-if ('serviceWorker' in navigator) {
+// ─── Service worker (production only) ──────────────────────────────────
+// Registering the SW during development causes aggressive caching that
+// hides code changes even with Ctrl+Shift+R. We only enable it for the
+// production build.
+if ('serviceWorker' in navigator && import.meta.env.PROD) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/sw.js').catch((err) => console.warn('SW:', err));
   });
@@ -92,19 +95,22 @@ let state = createInitialState({
 const ui = mount(appRoot, state, handleEvent);
 ui.update(state);
 
-// ─── Mount Graph / Units / Formulas / Programmer panels ────────────────
+// ─── Mount Graph panel ─────────────────────────────────────────────────
 const graphEl = document.createElement('div');
 tabs.registerPanel('graph', graphEl);
 const graph = mountGraph(graphEl);
 
+// ─── Mount Units panel ─────────────────────────────────────────────────
 const unitsEl = document.createElement('div');
 tabs.registerPanel('units', unitsEl);
 const units = mountUnits(unitsEl);
 
+// ─── Mount Formulas panel ──────────────────────────────────────────────
 const formulasEl = document.createElement('div');
 tabs.registerPanel('formulas', formulasEl);
 const formulas = mountFormulas(formulasEl);
 
+// ─── Mount Programmer panel ────────────────────────────────────────────
 const progEl = document.createElement('div');
 tabs.registerPanel('programmer', progEl);
 const programmer = mountProgrammer(progEl);
