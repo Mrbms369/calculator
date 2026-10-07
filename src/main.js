@@ -1,5 +1,5 @@
 // src/main.js
-// Bootstrap: tabs, state, UI, keyboard, theme, voice, sound, share, steps, graph, units, formulas.
+// Bootstrap: tabs, state, UI, keyboard, theme, voice, sound, share, steps, graph, units, formulas, programmer.
 
 import './styles/main.css';
 import './ui/panels.css';
@@ -17,6 +17,7 @@ import { mountSteps } from './ui/steps.js';
 import { mountGraph } from './ui/graph.js';
 import { mountUnits } from './ui/units.js';
 import { mountFormulas } from './ui/formulas.js';
+import { mountProgrammer } from './ui/programmer.js';
 
 // ─── Service worker ────────────────────────────────────────────────────
 if ('serviceWorker' in navigator) {
@@ -91,26 +92,29 @@ let state = createInitialState({
 const ui = mount(appRoot, state, handleEvent);
 ui.update(state);
 
-// ─── Mount Graph panel ─────────────────────────────────────────────────
+// ─── Mount Graph / Units / Formulas / Programmer panels ────────────────
 const graphEl = document.createElement('div');
 tabs.registerPanel('graph', graphEl);
 const graph = mountGraph(graphEl);
 
-// ─── Mount Units panel ─────────────────────────────────────────────────
 const unitsEl = document.createElement('div');
 tabs.registerPanel('units', unitsEl);
 const units = mountUnits(unitsEl);
 
-// ─── Mount Formulas panel ──────────────────────────────────────────────
 const formulasEl = document.createElement('div');
 tabs.registerPanel('formulas', formulasEl);
 const formulas = mountFormulas(formulasEl);
+
+const progEl = document.createElement('div');
+tabs.registerPanel('programmer', progEl);
+const programmer = mountProgrammer(progEl);
 
 // Notify panels on tab focus
 tabs.onChange((tabId) => {
   if (tabId === 'graph') graph.refresh?.();
   if (tabId === 'units') units.focus?.();
   if (tabId === 'formulas') formulas.focus?.();
+  if (tabId === 'programmer') programmer.focus?.();
 });
 
 // ─── Branding footer ───────────────────────────────────────────────────
