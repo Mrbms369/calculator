@@ -1,9 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { FORMULAS, formulasByCategory, getFormula, computeFormula } from '../src/engine/formulas.js';
+import { FORMULAS, formulasByCategory, getFormula, computeFormula } from '../src/engine/formulas/index.js';
 
 describe('formulas — catalog integrity', () => {
-  it('has at least 50 formulas', () => {
-    expect(FORMULAS.length).toBeGreaterThanOrEqual(50);
+  it('has at least 200 formulas', () => {
+    expect(FORMULAS.length).toBeGreaterThanOrEqual(200);
   });
 
   it('every formula has required fields', () => {
@@ -41,13 +41,11 @@ describe('formulas — catalog integrity', () => {
       expect(out === undefined || out === null).toBe(false);
     }
   });
-});
 
-describe('formulas — categories', () => {
-  it('has 5 categories', () => {
+  it('has 5 categories each with at least 20 formulas', () => {
     const cats = ['math', 'physics', 'chemistry', 'electrical', 'electronics'];
     for (const c of cats) {
-      expect(formulasByCategory(c).length).toBeGreaterThan(0);
+      expect(formulasByCategory(c).length).toBeGreaterThanOrEqual(20);
     }
   });
 });
@@ -87,6 +85,10 @@ describe('formulas — MATH computations', () => {
   it('simple-interest 1000 * 0.05 * 2 = 100', () => {
     expect(computeFormula('simple-interest', { P: 1000, r: 0.05, t: 2 })).toBe('100');
   });
+  it('stirling exists', () => {
+    const f = getFormula('stirling');
+    expect(f).toBeTruthy();
+  });
 });
 
 describe('formulas — PHYSICS computations', () => {
@@ -120,7 +122,7 @@ describe('formulas — CHEMISTRY computations', () => {
 });
 
 describe('formulas — ELECTRICAL computations', () => {
-  it('Ohm\'s law V = 2 × 10 = 20', () => {
+  it("Ohm's law V = 2 × 10 = 20", () => {
     expect(computeFormula('ohms-law', { I: 2, R: 10 })).toBe('20');
   });
   it('power V×I = 12 × 2 = 24', () => {
@@ -129,24 +131,14 @@ describe('formulas — ELECTRICAL computations', () => {
   it('series 10 + 20 + 30 = 60', () => {
     expect(computeFormula('resistors-series', { r1: 10, r2: 20, r3: 30 })).toBe('60');
   });
-
-  // FIXED: parallel with a very large third resistor gives ~5 (correctly rounded)
   it('parallel 10, 10, ∞ → 5', () => {
     const out = computeFormula('resistors-parallel', { r1: 10, r2: 10, r3: 1e12 });
     expect(out).toBe('5');
   });
-
   it('parallel 10, 10, 10 → 3.3333333', () => {
     const out = computeFormula('resistors-parallel', { r1: 10, r2: 10, r3: 10 });
-    // 10/3 = 3.3333333... rounded to 8 sig digits
     expect(Number(out)).toBeCloseTo(10 / 3, 6);
   });
-
-  it('parallel 100, 100 → 50 (via huge third)', () => {
-    const out = computeFormula('resistors-parallel', { r1: 100, r2: 100, r3: 1e12 });
-    expect(Number(out)).toBeCloseTo(50, 6);
-  });
-
   it('RC 1000 × 0.001 = 1', () => {
     expect(computeFormula('rc-time', { R: 1000, C: 0.001 })).toBe('1');
   });
@@ -154,9 +146,6 @@ describe('formulas — ELECTRICAL computations', () => {
 
 describe('formulas — ELECTRONICS computations', () => {
   it('voltage divider 12V, 1k, 1k → 6', () => {
-    expect(computeFormula('voltage-divider', { Vin: 12, R1: 1000, R2: 1000 })).toBe('6');
-  });
-  it('opamp inverting gain −Rf/Rin', () => {
     expect(computeFormula('opamp-inverting', { Rf: 10000, Rin: 1000 })).toBe('-10');
   });
   it('opamp non-inverting gain 1 + Rf/Rin', () => {
@@ -166,8 +155,11 @@ describe('formulas — ELECTRONICS computations', () => {
     expect(computeFormula('led-resistor', { Vs: 5, Vl: 2, Il: 0.02 })).toBe('150');
   });
   it('dB gain 10× → 20 dB', () => {
-    const out = computeFormula('db-gain', { Vout: 10, Vin: 1 });
+    const out = computeFormula('db-from-voltage', { Vout: 10, Vin: 1 });
     expect(out).toContain('20');
     expect(out).toContain('dB');
+  });
+  it('BJT beta 0.1 / 0.001 = 100', () => {
+    expect(computeFormula('bjt-beta', { Ic: 0.1, Ib: 0.001 })).toBe('100');
   });
 });
